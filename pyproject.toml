@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "raccoon"
+version = "0.0.0"
+description = "Raccoon cleans modulation created by undersampling the PSF in the JWST/NIRSpec spectra."
+readme = "README.rst"
+authors = [
+  {name = "Anowar J. Shajib", email = "ajshajib@gmail.com"}
+]
+maintainers = [
+  {name = "Anowar J. Shajib", email = "ajshajib@gmail.com"}
+]
+classifiers = [
+
+]
+license = {text = "MIT license"}
+dependencies = [
+  
+]
+
+[project.optional-dependencies]
+dev = [
+    "coverage",  # testing
+    "mypy",  # linting
+    "pytest",  # testing
+    "ruff"  # linting
+]
+
+[project.urls]
+
+bugs = "https://github.com/ajshajib/raccoon/issues"
+changelog = "https://github.com/ajshajib/raccoon/blob/master/changelog.md"
+homepage = "https://github.com/ajshajib/raccoon"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.package-data]
+"*" = ["*.*"]
+
+
+
+
+# Mypy
+# ----
+
+[tool.mypy]
+files = "."
+
+# Use strict defaults
+strict = true
+warn_unreachable = true
+warn_no_return = true
+
+[[tool.mypy.overrides]]
+# Don't require test functions to include types
+module = "tests.*"
+allow_untyped_defs = true
+disable_error_code = "attr-defined"
+
