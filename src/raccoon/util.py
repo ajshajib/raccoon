@@ -40,7 +40,19 @@ class Util(object):
         :return: Smoothed curve
         :rtype: np.ndarray
         """
-        return savgol_filter(savgol_filter(curve, 31, 3), 31, 3)
+        return savgol_filter(savgol_filter(curve, 51, 3), 51, 3)
+
+    @staticmethod
+    def lighter_smooth_curve(curve):
+        """
+        Smooth a curve using Savitzky-Golay filter
+
+        :param curve: 1D numpy array
+        :type curve: np.ndarray
+        :return: Smoothed curve
+        :rtype: np.ndarray
+        """
+        return savgol_filter(curve, 31, 3)
 
     @classmethod
     def find_init_peaks_troughs_mids(cls, curve, proximity_threshold=50):
@@ -71,6 +83,12 @@ class Util(object):
             if len(troughs) > len(peaks):
                 all_extrema.append(troughs[-1])
 
+        all_extrema = np.array(all_extrema)
+
+        # remove elements of peak and troughs that are not in all_extrema
+        peaks = np.array([p for p in peaks if p in all_extrema])
+        troughs = np.array([t for t in troughs if t in all_extrema])
+
         smooth_curve = cls.smooth_curve(curve)
 
         midpoints = []
@@ -98,7 +116,10 @@ class Util(object):
 
         midpoints = np.array(midpoints)
 
-        return peaks, troughs, midpoints
+        return peaks, troughs, midpoints, all_extrema
+
+    def get_modulatin_frequency_params(peaks, extrema):
+        return
 
     @classmethod
     def get_init_params(
@@ -127,21 +148,22 @@ class Util(object):
         :return: Initial amplitude, frequency, offset, and phase
         :rtype: Tuple[np.ndarray, np.ndarray, np.ndarray, float]
         """
-        peaks, troughs, midpoints = cls.find_init_peaks_troughs_mids(
+        peaks, troughs, midpoints, extrema = cls.find_init_peaks_troughs_mids(
             curve, proximity_threshold=proximity_threshold
         )
 
         smooth_curve = cls.smooth_curve(curve)
+        lighter_smooth_curve = cls.lighter_smooth_curve(curve)
+        # extrema = np.concatenate((peaks, troughs))
+        # extrema = np.sort(extrema)
 
-        extrema = np.concatenate((peaks, troughs))
-        extrema = np.sort(extrema)
-        extrema_values = smooth_curve[extrema]
+        extrema_values = lighter_smooth_curve[extrema]
         extrema_sw = scaled_wavelengths[extrema]
 
         # offset polyomial
-        midpoint_values = smooth_curve[midpoints]
+        midpoint_values = lighter_smooth_curve[midpoints]
         midpoint_sw = scaled_wavelengths[midpoints]
-        n_init_fit = min(2, n_offset)
+        n_init_fit = min(3, n_offset)
         offset_params = np.polyfit(midpoint_sw, midpoint_values - 1, n_init_fit)
         if n_offset > n_init_fit:
             offset_params = np.concatenate(
@@ -149,7 +171,7 @@ class Util(object):
             )
 
         # amplitude polynomial
-        n_init_fit = min(1, n_amplitude)
+        n_init_fit = min(5, n_amplitude)
         amplitude_params = np.polyfit(
             extrema_sw,
             np.abs(
@@ -191,18 +213,31 @@ class Util(object):
 
         if plot:
             plt.plot(scaled_wavelengths, curve, label="Input")
-            plt.plot(scaled_wavelengths, smooth_curve, label="Smoothed")
-            plt.scatter(scaled_wavelengths[peaks], smooth_curve[peaks], c="r")
-            plt.scatter(scaled_wavelengths[troughs], smooth_curve[troughs], c="b")
-            plt.scatter(midpoint_sw, midpoint_values, c="g")
+            plt.plot(scaled_wavelengths, lighter_smooth_curve, label="Smoothed")
+            plt.scatter(
+                scaled_wavelengths[peaks], lighter_smooth_curve[peaks], c="r", zorder=10
+            )
+            plt.scatter(
+                scaled_wavelengths[troughs],
+                lighter_smooth_curve[troughs],
+                c="b",
+                zorder=10,
+            )
+            plt.scatter(midpoint_sw, midpoint_values, c="g", zorder=10)
             plt.plot(
                 scaled_wavelengths,
-                1 + np.polyval(amplitude_params, scaled_wavelengths),
+                1
+                + np.polyval(amplitude_params, scaled_wavelengths)
+                + np.polyval(offset_params, scaled_wavelengths),
+                c="r",
+                ls="--",
                 label="Amplitude",
             )
             plt.plot(
                 scaled_wavelengths,
                 1 + np.polyval(offset_params, scaled_wavelengths),
+                c="g",
+                ls="--",
                 label="Offset",
             )
             plt.legend()
