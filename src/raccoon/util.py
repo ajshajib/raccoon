@@ -105,8 +105,8 @@ class Util(object):
         cls,
         curve,
         scaled_wavelengths,
-        n_amplitude=2,
         n_frequency=1,
+        n_amplitude=2,
         n_offset=7,
         proximity_threshold=50,
         plot=False,
@@ -138,6 +138,7 @@ class Util(object):
         extrema_values = smooth_curve[extrema]
         extrema_sw = scaled_wavelengths[extrema]
 
+        # offset polyomial
         midpoint_values = smooth_curve[midpoints]
         midpoint_sw = scaled_wavelengths[midpoints]
         n_init_fit = min(2, n_offset)
@@ -147,6 +148,7 @@ class Util(object):
                 (np.zeros(n_offset - n_init_fit), offset_params)
             )
 
+        # amplitude polynomial
         n_init_fit = min(1, n_amplitude)
         amplitude_params = np.polyfit(
             extrema_sw,
@@ -172,6 +174,7 @@ class Util(object):
         # plt.plot(extrema_sw, np.polyval(amplitude_params, extrema_sw))
         # plt.show()
 
+        # frequency polynomial
         modulation_k = []
         for i in range(len(extrema)):
             if i == 0:
@@ -205,4 +208,4 @@ class Util(object):
             plt.legend()
             plt.show()
 
-        return amplitude_params, frequency_params, offset_params, init_phi
+        return frequency_params, amplitude_params, offset_params, init_phi
