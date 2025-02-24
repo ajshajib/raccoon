@@ -1,9 +1,7 @@
-import jax.numpy as jnp
-import jax
 import numpy as np
 from scipy.signal import savgol_filter
 import matplotlib.pyplot as plt
-from jaxopt import LevenbergMarquardt
+from scipy.optimize import least_squares
 
 from .util import Util
 
@@ -34,10 +32,10 @@ class WiggleCleaner(object):
         :param n_offset: Number of offset parameters
         :type n_offset: int
         """
-        self._wavelengths = jnp.array(wavelengths)
+        self._wavelengths = np.array(wavelengths)
         self._datacube = datacube
         self._noise_cube = noise_cube
-        self._gaps = jnp.array(gaps)
+        self._gaps = np.array(gaps)
         self._n_amplitude = n_amplitude
         self._n_frequency = n_frequency
         self._n_offset = n_offset
@@ -46,7 +44,7 @@ class WiggleCleaner(object):
         for g in self._gaps:
             mask = (wavelengths > g[0]) & (wavelengths < g[1])
             gap_mask[mask] = 0
-        self._gap_mask = jnp.array(gap_mask)
+        self._gap_mask = np.array(gap_mask)
 
     @property
     def scaled_w(self):
@@ -54,7 +52,7 @@ class WiggleCleaner(object):
         Scaled wavelengths
 
         :return: Scaled wavelengths
-        :rtype: jax.numpy.array
+        :rtype: np.ndarray
         """
         return self.scale_wavelengths_to_1_m1(self._wavelengths)
 
@@ -65,27 +63,25 @@ class WiggleCleaner(object):
         Get the wiggle function.
 
         :param xs: Scaled wavelengths
-        :type xs: jax.numpy.array
+        :type xs: np.ndarray
         :param frequency_params: Frequency parameters
-        :type frequency_params: jax.numpy.array
+        :type frequency_params: np.ndarray
         :param amplitude_params: Amplitude parameters
-        :type amplitude_params: jax.numpy.array
+        :type amplitude_params: np.ndarray
         :param offset_params: Offset parameters
-        :type offset_params: jax.numpy.array
+        :type offset_params: np.ndarray
         :param phi: Phase
         :type phi: float
         :return: Wiggle function
-        :rtype: jax.numpy.array
+        :rtype: np.ndarray
         """
-        frequency = jnp.abs(jnp.polyval(frequency_params, xs))
-        amplitude = jnp.abs(jnp.polyval(amplitude_params, xs))
-        offset = jnp.polyval(offset_params, xs)
-        # k_1 = 0.0
-        # k_2 = 0.0
+        frequency = np.abs(np.polyval(frequency_params, xs))
+        amplitude = np.abs(np.polyval(amplitude_params, xs))
+        offset = np.polyval(offset_params, xs)
         wave_function = (
-            jnp.sin(frequency * xs + phi)
-            + k_1 * (jnp.sin(frequency * xs + phi) ** 2 - np.pi * frequency)
-            + k_2 * jnp.sin(3 * (frequency * xs + phi))
+            np.sin(frequency * xs + phi)
+            + k_1 * (np.sin(frequency * xs + phi) ** 2 - np.pi * frequency)
+            + k_2 * np.sin(3 * (frequency * xs + phi))
         )
 
         return 1.0 + amplitude * wave_function + offset
@@ -95,9 +91,9 @@ class WiggleCleaner(object):
         Scale the wavelengths to -1 to 1.
 
         :param w: Wavelengths
-        :type w: jax.numpy.array
+        :type w: np.ndarray
         :return: Scaled wavelengths
-        :rtype: jax.numpy.array
+        :rtype: np.ndarray
         """
         return (w - self._wavelengths[0]) / (
             self._wavelengths[-1] - self._wavelengths[0]
@@ -108,9 +104,9 @@ class WiggleCleaner(object):
         Get the wiggle model given the parameters.
 
         :param params: Parameters
-        :type params: jax.numpy.array
+        :type params: np.ndarray
         :return: Model
-        :rtype: jax.numpy.array
+        :rtype: np.ndarray
         """
         n_amplitude = self._n_amplitude
         n_frequency = self._n_frequency
@@ -141,13 +137,13 @@ class WiggleCleaner(object):
         Get the residual vector.
 
         :param params: Parameters
-        :type params: jax.numpy.array
+        :type params: np.ndarray
         :param curve: Curve
-        :type curve: jax.numpy.array
+        :type curve: np.ndarray
         :param noise: Noise
-        :type noise: jax.numpy.array
+        :type noise: np.ndarray
         :return: Residual vector
-        :rtype: jax.numpy.array
+        :rtype: np.ndarray
         """
         model = self.model(params)
 
@@ -161,24 +157,24 @@ class WiggleCleaner(object):
         Get the loss.
 
         :param params: Parameters
-        :type params: jax.numpy.array
+        :type params: np.ndarray
         :param curve: Curve
-        :type curve: jax.numpy.array
+        :type curve: np.ndarray
         :param noise: Noise
-        :type noise: jax.numpy.array
+        :type noise: np.ndarray
         :return: Loss
         :rtype: float
         """
-        return jnp.sum(self.loss_vector(params, curve, noise) ** 2)
+        return np.sum(self.loss_vector(params, curve, noise) ** 2)
 
     def get_residual_func(self, curve, noise):
         """
         Get the residual function.
 
         :param curve: Curve
-        :type curve: jax.numpy.array
+        :type curve: np.ndarray
         :param noise: Noise
-        :type noise: jax.numpy.array
+        :type noise: np.ndarray
         :return: Residual function
         :rtype: Callable
         """
@@ -193,20 +189,19 @@ class WiggleCleaner(object):
         Get the residual function with phase only.
 
         :param params: Parameters
-        :type params: jax.numpy.array
+        :type params: np.ndarray
         :param init_params: Initial parameters
-        :type init_params: jax.numpy.array
+        :type init_params: np.ndarray
         :param curve: Curve
-        :type curve: jax.numpy.array
+        :type curve: np.ndarray
         :param noise: Noise
-        :type noise: jax.numpy.array
+        :type noise: np.ndarray
         :return: Residual function
         :rtype: Callable
         """
 
         def residual_func(params):
-            new_params = jnp.concatenate([params, init_params[self._n_frequency + 2 :]])
-            new_params
+            new_params = np.concatenate([params, init_params[self._n_frequency + 2 :]])
             return self.loss_vector(new_params, curve, noise)
 
         return residual_func
@@ -242,7 +237,7 @@ class WiggleCleaner(object):
         :param plot_amplitude_offset: If True, plot the amplitude and offset
         :type plot_amplitude_offset: bool
         :return: Fitted parameters
-        :rtype: jax.numpy.array
+        :rtype: np.ndarray
         """
         if n_frequency is None:
             n_frequency = self._n_frequency
@@ -271,12 +266,9 @@ class WiggleCleaner(object):
             )
         )
 
-        curve = jnp.array(curve)
-        noise = jnp.array(noise)
+        curve = np.array(curve)
+        noise = np.array(noise)
 
-        # print(
-        #     init_amplitude_params, init_frequency_params, init_offset_params, init_phi
-        # )
         x0 = np.concatenate(
             [
                 init_frequency_params,
@@ -286,18 +278,15 @@ class WiggleCleaner(object):
                 np.array([0, 0]),
             ]
         )
-        x0 = jnp.array(x0)
 
-        solver = LevenbergMarquardt(
-            self.get_residual_func_phase_only(x0, curve, noise), xtol=1e-6
+        res = least_squares(
+            self.get_residual_func_phase_only(x0, curve, noise), x0[: n_frequency + 2]
         )
-        res = solver.run(x0[: n_frequency + 2])
-        res_params = res.params
+        res_params = res.x
 
-        x0 = x0.at[: n_frequency + 2].set(res_params)
-        solver = LevenbergMarquardt(self.get_residual_func(curve, noise), xtol=1e-6)
-        res = solver.run(x0)
-        res_params = res.params
+        x0[: n_frequency + 2] = res_params
+        res = least_squares(self.get_residual_func(curve, noise), x0)
+        res_params = res.x
 
         if plot:
             self.plot_model(
@@ -364,7 +353,7 @@ class WiggleCleaner(object):
             ]
             plt.plot(
                 self._wavelengths,
-                1 + jnp.polyval(offset_params, self.scaled_w),
+                1 + np.polyval(offset_params, self.scaled_w),
                 label="Offset",
                 c=green,
             )
@@ -374,8 +363,8 @@ class WiggleCleaner(object):
             plt.plot(
                 self._wavelengths,
                 1.0
-                + jnp.abs(jnp.polyval(amplitude_params, self.scaled_w))
-                + jnp.polyval(offset_params, self.scaled_w),
+                + np.abs(np.polyval(amplitude_params, self.scaled_w))
+                + np.polyval(offset_params, self.scaled_w),
                 label="Amplitude",
                 c=red,
             )
@@ -468,7 +457,7 @@ class WiggleCleaner(object):
         :param plot_amplitude_offset: If True, plot the amplitude and offset
         :type plot_amplitude_offset: bool
         :return: Fitted parameters
-        :rtype: jax.numpy.array
+        :rtype: np.ndarray
         """
         print("Computing BIC for choices of n_amplitude...")
         for i in range(min_n_amplitude, n_amplitude):
@@ -520,7 +509,7 @@ class WiggleCleaner(object):
         :param noise: Noise
         :type noise: np.ndarray
         :param res_params: Fitted parameters
-        :type res_params: jax.numpy.array
+        :type res_params: np.ndarray
         :return: BIC
         :rtype: float
         """
