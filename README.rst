@@ -16,7 +16,7 @@
 
 
 
-Raccoon cleans modulation created by undersampling the PSF in the JWST/NIRSpec spectra.
+Raccoon cleans modulation due to resampling noise (i.e., aliasing artifacts) in the JWST/NIRSpec IFS spectra.
 
 
 * Free software: MIT license
