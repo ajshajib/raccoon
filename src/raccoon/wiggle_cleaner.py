@@ -1,9 +1,14 @@
+__author__ = "ajshajib"
+
 import numpy as np
 from scipy.signal import savgol_filter
 import matplotlib.pyplot as plt
 from scipy.optimize import least_squares
+from tqdm import tqdm
 
 from .util import Util
+from .util import polyval
+from .util import polyfit
 
 
 class WiggleCleaner(object):
@@ -75,13 +80,14 @@ class WiggleCleaner(object):
         :return: Wiggle function
         :rtype: np.ndarray
         """
-        frequency = np.abs(np.polyval(frequency_params, xs))
-        amplitude = np.abs(np.polyval(amplitude_params, xs))
-        offset = np.polyval(offset_params, xs)
+        frequency = polyval(frequency_params, xs)
+        amplitude = np.abs(polyval(amplitude_params, xs))
+        offset = polyval(offset_params, xs)
+
         wave_function = (
             np.sin(frequency * xs + phi)
-            + k_1 * (np.sin(frequency * xs + phi) ** 2 - np.pi * frequency)
-            + k_2 * np.sin(3 * (frequency * xs + phi))
+            + k_1 * (np.sin(frequency * xs + phi) ** 2)  # asymmetric sharpness
+            + k_2 * np.sin(3 * (frequency * xs + phi))  # sharpness
         )
 
         return 1.0 + amplitude * wave_function + offset
@@ -213,9 +219,11 @@ class WiggleCleaner(object):
         n_amplitude=None,
         n_frequency=None,
         n_offset=None,
+        artificial_noise_level=0.005,
         proximity_threshold=200,
         plot=False,
         plot_amplitude_offset=False,
+        verbose=True,
     ):
         """
         Fit the curve.
@@ -230,12 +238,16 @@ class WiggleCleaner(object):
         :type n_frequency: int
         :param n_offset: Number of offset parameters
         :type n_offset: int
+        :param artificial_noise_level: Artificial noise level. Set to 0 to disable.
+        :type artificial_noise_level: float
         :param proximity_threshold: Proximity lower limit in Angstrom for initial identifaction of peaks and troughs
         :type proximity_threshold: float
         :param plot: If True, plot the results
         :type plot: bool
         :param plot_amplitude_offset: If True, plot the amplitude and offset
         :type plot_amplitude_offset: bool
+        :param verbose: If True, print the results
+        :type verbose: bool
         :return: Fitted parameters
         :rtype: np.ndarray
         """
@@ -254,13 +266,16 @@ class WiggleCleaner(object):
         else:
             self._n_offset = n_offset
 
+        if artificial_noise_level > 0:
+            noise = np.ones_like(curve) * artificial_noise_level
+
         init_frequency_params, init_amplitude_params, init_offset_params, init_phi = (
             Util.get_init_params(
                 curve,
                 self.scaled_w,
-                n_frequency=n_frequency,
                 n_amplitude=n_amplitude,
                 n_offset=n_offset,
+                n_frequency=n_frequency,
                 proximity_threshold=proximity_threshold
                 / np.mean(np.diff(self._wavelengths)),
             )
@@ -287,6 +302,9 @@ class WiggleCleaner(object):
         x0[: n_frequency + 2] = res_params
         res = least_squares(self.get_residual_func(curve, noise), x0)
         res_params = res.x
+
+        if verbose:
+            print("Loss: ", self.loss(res_params, curve, noise))
 
         if plot:
             self.plot_model(
@@ -353,7 +371,7 @@ class WiggleCleaner(object):
             ]
             plt.plot(
                 self._wavelengths,
-                1 + np.polyval(offset_params, self.scaled_w),
+                1 + polyval(offset_params, self.scaled_w),
                 label="Offset",
                 c=green,
             )
@@ -363,8 +381,8 @@ class WiggleCleaner(object):
             plt.plot(
                 self._wavelengths,
                 1.0
-                + np.abs(np.polyval(amplitude_params, self.scaled_w))
-                + np.polyval(offset_params, self.scaled_w),
+                + np.abs(polyval(amplitude_params, self.scaled_w))
+                + polyval(offset_params, self.scaled_w),
                 label="Amplitude",
                 c=red,
             )
@@ -427,10 +445,13 @@ class WiggleCleaner(object):
         self,
         curve,
         noise=None,
-        n_amplitude=None,
-        n_frequency=None,
-        n_offset=None,
-        min_n_amplitude=1,
+        n_amplitude=10,
+        n_frequency=1,
+        n_offset=7,
+        min_n_amplitude=None,
+        min_n_frequency=None,
+        min_n_offset=None,
+        artificial_noise_level=0.005,
         proximity_threshold=200,
         plot=False,
         plot_amplitude_offset=False,
@@ -450,6 +471,12 @@ class WiggleCleaner(object):
         :type n_offset: int
         :param min_n_amplitude: Minimum number of amplitude parameters
         :type min_n_amplitude: int
+        :param min_n_frequency: Minimum number of frequency parameters
+        :type min_n_frequency: int
+        :param min_n_offset: Minimum number of offset parameters
+        :type min_n_offset: int
+        :param artificial_noise_level: Artificial noise level
+        :type artificial_noise_level: float
         :param proximity_threshold: Proximity lower limit in Angstrom for initial identifaction of peaks and troughs
         :type proximity_threshold: float
         :param plot: If True, plot the results
@@ -460,32 +487,57 @@ class WiggleCleaner(object):
         :rtype: np.ndarray
         """
         print("Computing BIC for choices of n_amplitude...")
-        for i in range(min_n_amplitude, n_amplitude):
-            res_params = self.fit_curve(
-                curve,
-                noise,
-                n_amplitude=i,
-                n_frequency=n_frequency,
-                n_offset=n_offset,
-                proximity_threshold=proximity_threshold,
-                plot=False,
-                plot_amplitude_offset=False,
-            )
+        if min_n_amplitude is None:
+            min_n_amplitude = n_amplitude
+        if min_n_offset is None:
+            min_n_offset = n_offset
+        if min_n_frequency is None:
+            min_n_frequency = n_frequency
 
-            bic = self.get_bic(curve, noise, res_params)
-            print(f"n_amplitude: {i}, BIC: {bic}")
-            if i == min_n_amplitude:
-                best_n_amplitude = i
-                best_bic = bic
-                best_params = res_params
-            else:
-                if bic < best_bic:
-                    best_n_amplitude = i
-                    best_bic = bic
-                    best_params = res_params
+        best_bic = None
+        for i in tqdm(range(n_amplitude, min_n_amplitude - 1, -1)):
+            for j in range(n_offset, min_n_offset - 1, -1):
+                for k in range(n_frequency, min_n_frequency - 1, -1):
+                    res_params = self.fit_curve(
+                        curve,
+                        noise,
+                        n_amplitude=i,
+                        n_frequency=k,
+                        n_offset=j,
+                        artificial_noise_level=artificial_noise_level,
+                        proximity_threshold=proximity_threshold,
+                        plot=False,
+                        plot_amplitude_offset=False,
+                    )
+
+                    bic = self.get_bic(curve, noise, res_params)
+
+                    if best_bic is None:
+                        print(
+                            f"n_amplitude: {i}, n_offset: {j}, n_frequency: {k}, BIC: {bic}"
+                        )
+                        best_n_amplitude = i
+                        best_n_offset = j
+                        best_n_frequency = k
+                        best_bic = bic
+                        best_params = res_params
+                    elif bic < best_bic:
+                        print(
+                            f"n_amplitude: {i}, n_offset: {j}, n_frequency: {k}, BIC: {bic}"
+                        )
+                        best_n_amplitude = i
+                        best_n_offset = j
+                        best_n_frequency = k
+                        best_bic = bic
+                        best_params = res_params
 
         print("Best n_amplitude: ", best_n_amplitude)
+        print("Best n_offset: ", best_n_offset)
+        print("Best n_frequency: ", best_n_frequency)
+
         self._n_amplitude = best_n_amplitude
+        self._n_offset = best_n_offset
+        self._n_frequency = best_n_frequency
 
         if plot:
             self.plot_model(
@@ -517,3 +569,32 @@ class WiggleCleaner(object):
         k = len(res_params)
         loss = self.loss(res_params, curve, noise)
         return n * np.log(loss) + k * np.log(n)
+
+    def is_wiggle_detected(
+        self, curve, noise, res_params, n_offset=5, sigma_threshold=3
+    ):
+        """
+        Check if wiggle is detected.
+
+        :param curve: Curve
+        :type curve: np.ndarray
+        :param noise: Noise
+        :type noise: np.ndarray
+        :param n_offset: Number of offset parameters
+        :type n_offset: int
+        :param sigma_threshold: Sigma threshold
+        :type sigma_threshold: float
+        :return: True if wiggle is detected
+        :rtype: bool
+        """
+        coeffs = polyfit(
+            self.scaled_w,
+            curve,
+            n_offset,
+            w=1 / noise,
+        )
+
+        n = len(curve)
+        chi2 = np.sum((curve - polyval(coeffs, self.scaled_w)) ** 2 / noise**2)
+        bic_null = n * np.log(chi2) + n_offset * np.log(n)
+
