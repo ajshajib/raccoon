@@ -1,6 +1,17 @@
+__author__ = "ajshajib"
+
 import numpy as np
 from scipy.signal import savgol_filter
 import matplotlib.pyplot as plt
+from numpy.polynomial.chebyshev import chebfit as polyfit
+from numpy.polynomial.chebyshev import chebval
+
+
+def polyval(coeffs, x):
+    """
+    Evaluate a polynomial at a point. The signature is the same as numpy.polyval.
+    """
+    return chebval(x, coeffs)
 
 
 class Util(object):
@@ -164,7 +175,7 @@ class Util(object):
         midpoint_values = lighter_smooth_curve[midpoints]
         midpoint_sw = scaled_wavelengths[midpoints]
         n_init_fit = min(3, n_offset)
-        offset_params = np.polyfit(midpoint_sw, midpoint_values - 1, n_init_fit)
+        offset_params = polyfit(midpoint_sw, midpoint_values - 1, n_init_fit)
         if n_offset > n_init_fit:
             offset_params = np.concatenate(
                 (np.zeros(n_offset - n_init_fit), offset_params)
@@ -172,12 +183,12 @@ class Util(object):
 
         # amplitude polynomial
         n_init_fit = min(10, n_amplitude)
-        amplitude_params = np.polyfit(
+        print(len(scaled_wavelengths))
+        print(len(polyval(offset_params, scaled_wavelengths)))
+        amplitude_params = polyfit(
             extrema_sw,
             np.abs(
-                extrema_values
-                - np.polyval(offset_params, scaled_wavelengths)[extrema]
-                - 1
+                extrema_values - polyval(offset_params, scaled_wavelengths)[extrema] - 1
             ),
             n_init_fit,
         )
@@ -189,11 +200,11 @@ class Util(object):
         #     extrema_sw,
         #     np.abs(
         #         extrema_values
-        #         - np.polyval(offset_params, scaled_wavelengths)[extrema]
+        #         - polyval(offset_params, scaled_wavelengths)[extrema]
         #         - 1
         #     ),
         # )
-        # plt.plot(extrema_sw, np.polyval(amplitude_params, extrema_sw))
+        # plt.plot(extrema_sw, polyval(amplitude_params, extrema_sw))
         # plt.show()
 
         # frequency polynomial
@@ -206,7 +217,7 @@ class Util(object):
             else:
                 modulation_k.append(extrema_sw[i + 1] - extrema_sw[i - 1])
         modulation_frequency = 2 * np.pi / np.array(modulation_k)
-        frequency_params = np.polyfit(extrema_sw, modulation_frequency, n_frequency)
+        frequency_params = polyfit(extrema_sw, modulation_frequency, n_frequency)
         # frequency_coeffs = cls.get_linear_freq_coeffs_from_extrema(
         #     extrema, scaled_wavelengths
         # )
@@ -243,15 +254,15 @@ class Util(object):
             plt.plot(
                 scaled_wavelengths,
                 1
-                + np.polyval(amplitude_params, scaled_wavelengths)
-                + np.polyval(offset_params, scaled_wavelengths),
+                + polyval(amplitude_params, scaled_wavelengths)
+                + polyval(offset_params, scaled_wavelengths),
                 c="r",
                 ls="--",
                 label="Amplitude",
             )
             plt.plot(
                 scaled_wavelengths,
-                1 + np.polyval(offset_params, scaled_wavelengths),
+                1 + polyval(offset_params, scaled_wavelengths),
                 c="g",
                 ls="--",
                 label="Offset",
@@ -288,3 +299,129 @@ class Util(object):
         x = np.linalg.lstsq(A, b)[0]
 
         return x
+
+    @classmethod
+    def fit_sine_function_to_extrema(
+        cls,
+        extrema_positions,
+        extrema_vals,
+        is_peak,
+        n_amplitude,
+        n_offset,
+        n_frequency,
+        phi_0=None,
+    ):
+        """
+        Fit a wiggly function to the peaks and troughs of a curve.
+
+        :param extrema_positions: Positions of the extrema
+        :type extrema_positions: np.ndarray
+        :param extrema_vals: Values of the extrema
+        :type extrema_vals: np.ndarray
+        :param is_peak: If True, the extrema are peaks, otherwise they are troughs
+        :type is_peak: np.ndarray
+        :param n_amplitude: Degree of the polynomial for the amplitude
+        :type n_amplitude: int
+        :param n_offset: Degree of the polynomial for the offset
+        :type n_offset: int
+        :param n_frequency: Degree of the polynomial for the frequency
+        :type n_frequency: int
+        :param phi_0: Phase offset
+        :type phi_0: float
+        :return: amplitude coefficients, offset coefficients, frequency coefficients, phase offset
+        """
+        # Sort points by x
+        sorted_indices = np.argsort(extrema_positions)
+        extrema_positions = extrema_positions[sorted_indices]
+        extrema_values = extrema_vals[sorted_indices]
+        is_peak = is_peak[sorted_indices]
+
+        # Part 1: Fit amplitude A(x) and offset O(x) polynomials
+        # -----------------------------------------------------------
+        # y = A(x) + O(x) for peaks, y = -A(x) + O(x) for troughs
+        A_matrix = []
+        b = []
+        for xi, yi, peak in zip(extrema_positions, extrema_values, is_peak):
+            row_A = np.concatenate(
+                [
+                    [xi**k for k in range(n_amplitude + 1)],  # A(x) coefficients
+                    [xi**k for k in range(n_offset + 1)],  # O(x) coefficients
+                ]
+            )
+            if peak:
+                A_matrix.append(
+                    np.concatenate([row_A[: n_amplitude + 1], row_A[n_amplitude + 1 :]])
+                )
+            else:
+                A_matrix.append(
+                    np.concatenate(
+                        [-row_A[: n_amplitude + 1], row_A[n_amplitude + 1 :]]
+                    )
+                )
+            b.append(yi)
+
+        # Solve least squares for amplitude and offset coefficients
+        A_matrix = np.array(A_matrix)
+        amplitude_offset_coeffs = np.linalg.lstsq(A_matrix, b, rcond=None)[0]
+        amplitude_coeffs = amplitude_offset_coeffs[: n_amplitude + 1]
+        offset_coeffs = amplitude_offset_coeffs[n_amplitude + 1 :]
+
+        # Part 2: Fit frequency polynomial F(x)
+        A_freq = []
+        b_freq = []
+        for i in range(1, len(extrema_positions)):
+            x_start = extrema_positions[i - 1]
+            x_end = extrema_positions[i]
+            # Phase difference required between points (π for peak-trough, 2π otherwise)
+            delta_phase = np.pi if (is_peak[i - 1] != is_peak[i]) else 2 * np.pi
+            # Equation: sum(F_k * (x_end^{k+1} - x_start^{k+1}) = delta_phase
+            equation = [
+                x_end ** (k + 1) - x_start ** (k + 1) for k in range(n_frequency + 1)
+            ]
+            A_freq.append(equation)
+            b_freq.append(delta_phase)
+        frequency_coeffs = np.linalg.lstsq(A_freq, b_freq, rcond=None)[0]
+
+        # Part 3: Compute phase offset phi_0
+        x0 = extrema_positions[0]
+        # Compute F(x0) * x0
+        F_x0 = np.polyval(frequency_coeffs[::-1], x0)  # Reverse coeffs for polyval
+        F_x0_x0 = F_x0 * x0
+
+        # φ(x0) should be π/2 for peaks, 3π/2 for troughs
+        target_phase = np.pi / 2 if is_peak[0] else 3 * np.pi / 2
+        phi_0 = target_phase - F_x0_x0
+        # target_phase = np.pi / 2 if is_peak[0] else 3 * np.pi / 2
+        # phi0 = target_phase - 2 * np.pi * F_x0
+
+        amplitude_coeffs = np.polynomial.chebyshev.poly2cheb(amplitude_coeffs)
+        offset_coeffs = np.polynomial.chebyshev.poly2cheb(offset_coeffs)
+        frequency_coeffs = np.polynomial.chebyshev.poly2cheb(frequency_coeffs)
+
+        return amplitude_coeffs, offset_coeffs, frequency_coeffs, phi_0
+
+    @classmethod
+    def fitted_sine_function(
+        cls, xs, amplitude_coeffs, offset_coeffs, frequency_coeffs, phi_0
+    ):
+        """
+        Evaluate the fitted sine function at x.
+
+        :param xs: x values
+        :type xs: np.ndarray
+        :param amplitude_coeffs: Amplitude coefficients
+        :type amplitude_coeffs: np.ndarray
+        :param offset_coeffs: Offset coefficients
+        :type offset_coeffs: np.ndarray
+        :param frequency_coeffs: Frequency coefficients
+        :type frequency_coeffs: np.ndarray
+        :param phi_0: Phase offset
+        :type phi_0: float
+        :return: Fitted sine function values
+        :rtype: np.ndarray
+        """
+        amp = polyval(amplitude_coeffs, xs)
+        offset = polyval(offset_coeffs, xs)
+        freq = polyval(frequency_coeffs, xs)
+
+        return amp * np.sin(freq * xs + phi_0) + offset
