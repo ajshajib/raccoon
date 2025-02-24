@@ -186,54 +186,10 @@ class Util(object):
             curve, proximity_threshold=proximity_threshold
         )
 
-        smooth_curve = cls.smooth_curve(curve)
         lighter_smooth_curve = cls.lighter_smooth_curve(curve)
-        # extrema = np.concatenate((peaks, troughs))
-        # extrema = np.sort(extrema)
 
         extrema_values = lighter_smooth_curve[extrema]
         extrema_sw = scaled_wavelengths[extrema]
-
-        # # offset polyomial
-        # midpoint_values = lighter_smooth_curve[midpoints]
-        # midpoint_sw = scaled_wavelengths[midpoints]
-        # n_init_fit = min(3, n_offset)
-        # offset_params = polyfit(midpoint_sw, midpoint_values - 1, n_init_fit)
-        # if n_offset > n_init_fit:
-        #     offset_params = np.concatenate(
-        #         (np.zeros(n_offset - n_init_fit), offset_params)
-        #     )
-
-        # # amplitude polynomial
-        # n_init_fit = min(10, n_amplitude)
-        # print(len(scaled_wavelengths))
-        # print(len(polyval(offset_params, scaled_wavelengths)))
-        # amplitude_params = polyfit(
-        #     extrema_sw,
-        #     np.abs(
-        #         extrema_values - polyval(offset_params, scaled_wavelengths)[extrema] - 1
-        #     ),
-        #     n_init_fit,
-        # )
-        # if n_amplitude > n_init_fit:
-        #     amplitude_params = np.concatenate(
-        #         (np.zeros(n_amplitude - n_init_fit), amplitude_params)
-        #     )
-
-        # # frequency polynomial
-        # modulation_k = []
-        # for i in range(len(extrema)):
-        #     if i == 0:
-        #         modulation_k.append((extrema_sw[1] - extrema_sw[0]) * 2)
-        #     elif i == len(extrema) - 1:
-        #         modulation_k.append((extrema_sw[-1] - extrema_sw[-2]) * 2)
-        #     else:
-        #         modulation_k.append(extrema_sw[i + 1] - extrema_sw[i - 1])
-        # modulation_frequency = 2 * np.pi / np.array(modulation_k)
-        # frequency_params = polyfit(extrema_sw, modulation_frequency, n_frequency)
-
-        # peak_0 = scaled_wavelengths[peaks[0]]
-        # init_phi = ((peak_0 - scaled_wavelengths[0]) / modulation_k[0] / 4) * np.pi / 2
 
         amplitude_params, offset_params, frequency_params, init_phi = (
             cls.fit_sine_function_to_extrema(
@@ -259,7 +215,6 @@ class Util(object):
                 c="b",
                 zorder=10,
             )
-            # plt.scatter(midpoint_sw, midpoint_values, c="g", zorder=10)
             plt.plot(
                 scaled_wavelengths,
                 1
@@ -352,14 +307,12 @@ class Util(object):
         :type phi_0: float
         :return: amplitude coefficients, offset coefficients, frequency coefficients, phase offset
         """
-        # Sort points by x
         sorted_indices = np.argsort(extrema_positions)
         extrema_positions = extrema_positions[sorted_indices]
         extrema_values = extrema_vals[sorted_indices] - 1
         is_peak = is_peak[sorted_indices]
 
-        # Part 1: Fit amplitude A(x) and offset O(x) polynomials
-        # -----------------------------------------------------------
+        # Fit amplitude A(x) and offset O(x) polynomials
         # y = A(x) + O(x) for peaks, y = -A(x) + O(x) for troughs
         A_matrix = []
         b = []
@@ -388,7 +341,7 @@ class Util(object):
         amplitude_coeffs = amplitude_offset_coeffs[: n_amplitude + 1]
         offset_coeffs = amplitude_offset_coeffs[n_amplitude + 1 :]
 
-        # Part 2: Fit frequency polynomial F(x)
+        # Fit frequency polynomial F(x)
         A_freq = []
         b_freq = []
         for i in range(1, len(extrema_positions)):
@@ -404,7 +357,7 @@ class Util(object):
             b_freq.append(delta_phase)
         frequency_coeffs = np.linalg.lstsq(A_freq, b_freq, rcond=None)[0]
 
-        # Part 3: Compute phase offset phi_0
+        # Compute phase offset phi_0
         x0 = extrema_positions[0]
         # Compute F(x0) * x0
         F_x0 = np.polyval(frequency_coeffs[::-1], x0)  # Reverse coeffs for polyval
