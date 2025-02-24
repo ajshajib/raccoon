@@ -1,7 +1,6 @@
 __author__ = "ajshajib"
 
 import numpy as np
-from scipy.signal import savgol_filter
 import matplotlib.pyplot as plt
 from scipy.optimize import least_squares
 from tqdm import tqdm
