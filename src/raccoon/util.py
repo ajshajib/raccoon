@@ -171,7 +171,7 @@ class Util(object):
             )
 
         # amplitude polynomial
-        n_init_fit = min(5, n_amplitude)
+        n_init_fit = min(10, n_amplitude)
         amplitude_params = np.polyfit(
             extrema_sw,
             np.abs(
@@ -207,9 +207,25 @@ class Util(object):
                 modulation_k.append(extrema_sw[i + 1] - extrema_sw[i - 1])
         modulation_frequency = 2 * np.pi / np.array(modulation_k)
         frequency_params = np.polyfit(extrema_sw, modulation_frequency, n_frequency)
+        # frequency_coeffs = cls.get_linear_freq_coeffs_from_extrema(
+        #     extrema, scaled_wavelengths
+        # )
+        # frequency_params = np.zeros(n_frequency + 1)
+        # frequency_params[-2:] = frequency_coeffs
 
         peak_0 = scaled_wavelengths[peaks[0]]
         init_phi = ((peak_0 - scaled_wavelengths[0]) / modulation_k[0] / 4) * np.pi / 2
+        # v_0, f_0 = frequency_coeffs
+        # if extrema_values[0] < 1:
+        #     init_phi = 3 * np.pi / 2 - 2 * np.pi * (
+        #         f_0 * scaled_wavelengths[extrema[0]]
+        #         + v_0 * scaled_wavelengths[extrema[0]] ** 2
+        #     )
+        # else:
+        #     init_phi = np.pi / 2 - 2 * np.pi * (
+        #         f_0 * scaled_wavelengths[extrema[0]]
+        #         + v_0 * scaled_wavelengths[extrema[0]] ** 2
+        #     )
 
         if plot:
             plt.plot(scaled_wavelengths, curve, label="Input")
@@ -244,3 +260,31 @@ class Util(object):
             plt.show()
 
         return frequency_params, amplitude_params, offset_params, init_phi
+
+    @classmethod
+    def get_linear_freq_coeffs_from_extrema(cls, extrema, scaled_wavelengths):
+        """
+        Get the linear frequency coefficients from the extrema.
+
+        :param extrema: Extrema
+        :type extrema: np.ndarray
+        :param scaled_wavelengths: Scaled wavelengths
+        :type scaled_wavelengths: np.ndarray
+        :return: Linear frequency coefficients
+        :rtype: np.ndarray
+        """
+        A = []
+        for i in range(len(extrema) - 1):
+            A.append(
+                [
+                    scaled_wavelengths[extrema[i + 1]] ** 2
+                    - scaled_wavelengths[extrema[i]] ** 2,
+                    scaled_wavelengths[extrema[i + 1]] - scaled_wavelengths[extrema[i]],
+                ]
+            )
+        A = np.array(A)
+        b = np.ones(len(extrema) - 1) * 0.5
+        print(A.shape, b.shape)
+        x = np.linalg.lstsq(A, b)[0]
+
+        return x
