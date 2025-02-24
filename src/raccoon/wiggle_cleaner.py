@@ -22,6 +22,8 @@ class WiggleCleaner(object):
         n_amplitude=9,
         n_frequency=9,
         n_offset=9,
+        symmetric_sharpenning=False,
+        asymmetric_sharpenning=False,
     ):
         """
         Initialize the WiggleCleaner object.
@@ -44,6 +46,9 @@ class WiggleCleaner(object):
         self._n_amplitude = n_amplitude
         self._n_frequency = n_frequency
         self._n_offset = n_offset
+
+        self._symmetric_sharpenning = symmetric_sharpenning
+        self._asymmetric_sharpenning = asymmetric_sharpenning
 
         gap_mask = np.ones_like(wavelengths)
         for g in self._gaps:
@@ -124,8 +129,18 @@ class WiggleCleaner(object):
         offset_params = params[
             n_amplitude + n_frequency + 3 : n_amplitude + n_frequency + n_offset + 4
         ]
-        k_1 = params[-2]
-        k_2 = params[-1]
+        if self._asymmetric_sharpenning and not self._asymmetric_sharpenning:
+            k_1 = params[-1]
+            k_2 = 0
+        elif self._symmetric_sharpenning and not self._asymmetric_sharpenning:
+            k_1 = 0
+            k_2 = params[-1]
+        elif self._symmetric_sharpenning and self._asymmetric_sharpenning:
+            k_1 = params[-2]
+            k_2 = params[-1]
+        else:
+            k_1 = 0
+            k_2 = 0
 
         model = self.wiggle_func(
             self.scaled_w,
@@ -223,7 +238,7 @@ class WiggleCleaner(object):
         proximity_threshold=200,
         plot=False,
         plot_amplitude_offset=False,
-        verbose=True,
+        verbose=False,
     ):
         """
         Fit the curve.
@@ -290,9 +305,12 @@ class WiggleCleaner(object):
                 np.array([init_phi]),
                 init_amplitude_params,
                 init_offset_params,
-                np.array([0, 0]),
             ]
         )
+        if self._symmetric_sharpenning and self._asymmetric_sharpenning:
+            x0 = np.concatenate([x0, np.array([0, 0])])
+        elif self._symmetric_sharpenning or self._asymmetric_sharpenning:
+            x0 = np.concatenate([x0, np.array([0])])
 
         res = least_squares(
             self.get_residual_func_phase_only(x0, curve, noise), x0[: n_frequency + 2]
@@ -571,7 +589,7 @@ class WiggleCleaner(object):
         return n * np.log(loss) + k * np.log(n)
 
     def is_wiggle_detected(
-        self, curve, noise, res_params, n_offset=5, sigma_threshold=3
+        self, curve, noise, res_params, n_offset=5, sigma_threshold=5
     ):
         """
         Check if wiggle is detected.
@@ -595,6 +613,16 @@ class WiggleCleaner(object):
         )
 
         n = len(curve)
-        chi2 = np.sum((curve - polyval(coeffs, self.scaled_w)) ** 2 / noise**2)
-        bic_null = n * np.log(chi2) + n_offset * np.log(n)
+        residual = curve - polyval(coeffs, self.scaled_w)
 
+        p = np.percentile(np.abs(residual), 97.5)
+        indices = np.abs(residual) < p
+        chi2 = np.sum(((residual**2 / noise**2) * self._gap_mask)[indices])
+        chi2_red = chi2 / n
+
+        residual = self.loss_vector(res_params, curve, noise)
+        chi2_model_red = np.sum(residual[indices] ** 2) / n
+
+        sigma = np.sqrt(chi2_red - chi2_model_red)
+        print(sigma, chi2_red - chi2_model_red)
+        return sigma > sigma_threshold
