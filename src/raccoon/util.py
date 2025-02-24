@@ -3,15 +3,38 @@ __author__ = "ajshajib"
 import numpy as np
 from scipy.signal import savgol_filter
 import matplotlib.pyplot as plt
-from numpy.polynomial.chebyshev import chebfit as polyfit
+from numpy.polynomial.chebyshev import chebfit
 from numpy.polynomial.chebyshev import chebval
 
 
 def polyval(coeffs, x):
     """
     Evaluate a polynomial at a point. The signature is the same as numpy.polyval.
+
+    :param coeffs: Coefficients of the polynomial
+    :type coeffs: np.ndarray
+    :param x: Point to evaluate the polynomial
+    :type x: float
+    :return: Value of the polynomial at x
+    :rtype: float
     """
     return chebval(x, coeffs)
+
+
+def polyfit(x, y, deg, w=None):
+    """
+    Fit a polynomial to the data. The signature is the same as numpy.polyfit.
+
+    :param x: x values
+    :type x: np.ndarray
+    :param y: y values
+    :type y: np.ndarray
+    :param deg: Degree of the polynomial
+    :type deg: int
+    :return: Coefficients of the polynomial
+    :rtype: np.ndarray
+    """
+    return chebfit(x, y, deg, w=w)
 
 
 class Util(object):
@@ -137,9 +160,9 @@ class Util(object):
         cls,
         curve,
         scaled_wavelengths,
-        n_frequency=1,
         n_amplitude=2,
         n_offset=7,
+        n_frequency=1,
         proximity_threshold=50,
         plot=False,
     ):
@@ -171,72 +194,58 @@ class Util(object):
         extrema_values = lighter_smooth_curve[extrema]
         extrema_sw = scaled_wavelengths[extrema]
 
-        # offset polyomial
-        midpoint_values = lighter_smooth_curve[midpoints]
-        midpoint_sw = scaled_wavelengths[midpoints]
-        n_init_fit = min(3, n_offset)
-        offset_params = polyfit(midpoint_sw, midpoint_values - 1, n_init_fit)
-        if n_offset > n_init_fit:
-            offset_params = np.concatenate(
-                (np.zeros(n_offset - n_init_fit), offset_params)
-            )
+        # # offset polyomial
+        # midpoint_values = lighter_smooth_curve[midpoints]
+        # midpoint_sw = scaled_wavelengths[midpoints]
+        # n_init_fit = min(3, n_offset)
+        # offset_params = polyfit(midpoint_sw, midpoint_values - 1, n_init_fit)
+        # if n_offset > n_init_fit:
+        #     offset_params = np.concatenate(
+        #         (np.zeros(n_offset - n_init_fit), offset_params)
+        #     )
 
-        # amplitude polynomial
-        n_init_fit = min(10, n_amplitude)
-        print(len(scaled_wavelengths))
-        print(len(polyval(offset_params, scaled_wavelengths)))
-        amplitude_params = polyfit(
-            extrema_sw,
-            np.abs(
-                extrema_values - polyval(offset_params, scaled_wavelengths)[extrema] - 1
-            ),
-            n_init_fit,
-        )
-        if n_amplitude > n_init_fit:
-            amplitude_params = np.concatenate(
-                (np.zeros(n_amplitude - n_init_fit), amplitude_params)
-            )
-        # plt.plot(
+        # # amplitude polynomial
+        # n_init_fit = min(10, n_amplitude)
+        # print(len(scaled_wavelengths))
+        # print(len(polyval(offset_params, scaled_wavelengths)))
+        # amplitude_params = polyfit(
         #     extrema_sw,
         #     np.abs(
-        #         extrema_values
-        #         - polyval(offset_params, scaled_wavelengths)[extrema]
-        #         - 1
+        #         extrema_values - polyval(offset_params, scaled_wavelengths)[extrema] - 1
         #     ),
+        #     n_init_fit,
         # )
-        # plt.plot(extrema_sw, polyval(amplitude_params, extrema_sw))
-        # plt.show()
-
-        # frequency polynomial
-        modulation_k = []
-        for i in range(len(extrema)):
-            if i == 0:
-                modulation_k.append((extrema_sw[1] - extrema_sw[0]) * 2)
-            elif i == len(extrema) - 1:
-                modulation_k.append((extrema_sw[-1] - extrema_sw[-2]) * 2)
-            else:
-                modulation_k.append(extrema_sw[i + 1] - extrema_sw[i - 1])
-        modulation_frequency = 2 * np.pi / np.array(modulation_k)
-        frequency_params = polyfit(extrema_sw, modulation_frequency, n_frequency)
-        # frequency_coeffs = cls.get_linear_freq_coeffs_from_extrema(
-        #     extrema, scaled_wavelengths
-        # )
-        # frequency_params = np.zeros(n_frequency + 1)
-        # frequency_params[-2:] = frequency_coeffs
-
-        peak_0 = scaled_wavelengths[peaks[0]]
-        init_phi = ((peak_0 - scaled_wavelengths[0]) / modulation_k[0] / 4) * np.pi / 2
-        # v_0, f_0 = frequency_coeffs
-        # if extrema_values[0] < 1:
-        #     init_phi = 3 * np.pi / 2 - 2 * np.pi * (
-        #         f_0 * scaled_wavelengths[extrema[0]]
-        #         + v_0 * scaled_wavelengths[extrema[0]] ** 2
+        # if n_amplitude > n_init_fit:
+        #     amplitude_params = np.concatenate(
+        #         (np.zeros(n_amplitude - n_init_fit), amplitude_params)
         #     )
-        # else:
-        #     init_phi = np.pi / 2 - 2 * np.pi * (
-        #         f_0 * scaled_wavelengths[extrema[0]]
-        #         + v_0 * scaled_wavelengths[extrema[0]] ** 2
-        #     )
+
+        # # frequency polynomial
+        # modulation_k = []
+        # for i in range(len(extrema)):
+        #     if i == 0:
+        #         modulation_k.append((extrema_sw[1] - extrema_sw[0]) * 2)
+        #     elif i == len(extrema) - 1:
+        #         modulation_k.append((extrema_sw[-1] - extrema_sw[-2]) * 2)
+        #     else:
+        #         modulation_k.append(extrema_sw[i + 1] - extrema_sw[i - 1])
+        # modulation_frequency = 2 * np.pi / np.array(modulation_k)
+        # frequency_params = polyfit(extrema_sw, modulation_frequency, n_frequency)
+
+        # peak_0 = scaled_wavelengths[peaks[0]]
+        # init_phi = ((peak_0 - scaled_wavelengths[0]) / modulation_k[0] / 4) * np.pi / 2
+
+        amplitude_params, offset_params, frequency_params, init_phi = (
+            cls.fit_sine_function_to_extrema(
+                extrema_sw,
+                extrema_values,
+                np.array([True if i in peaks else False for i in extrema]),
+                n_amplitude,
+                n_offset,
+                n_frequency,
+                phi_0=None,
+            )
+        )
 
         if plot:
             plt.plot(scaled_wavelengths, curve, label="Input")
@@ -250,7 +259,7 @@ class Util(object):
                 c="b",
                 zorder=10,
             )
-            plt.scatter(midpoint_sw, midpoint_values, c="g", zorder=10)
+            # plt.scatter(midpoint_sw, midpoint_values, c="g", zorder=10)
             plt.plot(
                 scaled_wavelengths,
                 1
@@ -266,6 +275,19 @@ class Util(object):
                 c="g",
                 ls="--",
                 label="Offset",
+            )
+            plt.plot(
+                scaled_wavelengths,
+                cls.fitted_sine_function(
+                    scaled_wavelengths,
+                    amplitude_params,
+                    offset_params,
+                    frequency_params,
+                    init_phi,
+                ),
+                c="k",
+                ls="--",
+                label="Fitted",
             )
             plt.legend()
             plt.show()
@@ -333,7 +355,7 @@ class Util(object):
         # Sort points by x
         sorted_indices = np.argsort(extrema_positions)
         extrema_positions = extrema_positions[sorted_indices]
-        extrema_values = extrema_vals[sorted_indices]
+        extrema_values = extrema_vals[sorted_indices] - 1
         is_peak = is_peak[sorted_indices]
 
         # Part 1: Fit amplitude A(x) and offset O(x) polynomials
@@ -424,4 +446,4 @@ class Util(object):
         offset = polyval(offset_coeffs, xs)
         freq = polyval(frequency_coeffs, xs)
 
-        return amp * np.sin(freq * xs + phi_0) + offset
+        return 1 + amp * np.sin(freq * xs + phi_0) + offset
