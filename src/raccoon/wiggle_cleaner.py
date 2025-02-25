@@ -559,6 +559,11 @@ class WiggleCleaner(object):
         # replace non-positive noise with minimum non-negative value
         curve_noise[curve_noise <= 0] = np.nanmin(curve_noise[curve_noise > 0])
 
+        # normalize the curve
+        median = np.nanmedian(curve)
+        curve /= median
+        curve_noise /= median
+
         return curve, curve_noise
 
     def fit_curve_with_best_bic(
@@ -800,7 +805,8 @@ class WiggleCleaner(object):
         :return: Cleaned datacube
         :rtype: np.ndarray
         """
-        self.cleaned_cube = np.copy(self._datacube)
+        self.cleaned_datacube = np.copy(self._datacube)
+        self.cleaned_noisecube = np.copy(self._noise_cube)
 
         n_amplitude, n_frequency, n_offset = self.configure_polynomial_ns(
             n_amplitude, n_frequency, n_offset
@@ -809,11 +815,11 @@ class WiggleCleaner(object):
         if min_x is None:
             min_x = aperture_size
         if max_x is None:
-            max_x = self.cleaned_cube.shape[1] - aperture_size
+            max_x = self.cleaned_datacube.shape[1] - aperture_size
         if min_y is None:
             min_y = aperture_size
         if max_y is None:
-            max_y = self.cleaned_cube.shape[2] - aperture_size
+            max_y = self.cleaned_datacube.shape[2] - aperture_size
 
         total_iterations = (max_x - min_x) * (max_y - min_y)
         with tqdm(total=total_iterations, desc="Cleaning spaxels") as pbar:
@@ -891,14 +897,22 @@ class WiggleCleaner(object):
                         integral_base = 1
                         if conserve_flux:
                             integral = np.trapz(
-                                self.cleaned_cube[:, i, j] / wave_model, self.scaled_w
+                                self._datacube[:, i, j] / wave_model,
+                                self.scaled_w,
                             )
                             integral_base = np.trapz(
                                 self._datacube[:, i, j], self.scaled_w
                             )
 
-                        self.cleaned_cube[:, i, j] = (
-                            (self.cleaned_cube[:, i, j] / wave_model)
+                        self.cleaned_datacube[:, i, j] = (
+                            self._datacube[:, i, j]
+                            / wave_model
+                            / integral
+                            * integral_base
+                        )
+                        self.cleaned_noisecube[:, i, j] = (
+                            self._noise_cube[:, i, j]
+                            / wave_model
                             / integral
                             * integral_base
                         )
@@ -911,7 +925,7 @@ class WiggleCleaner(object):
                             )
                             plt.plot(
                                 self._wavelengths,
-                                self.cleaned_cube[:, i, j],
+                                self.cleaned_datacube[:, i, j],
                                 label="Cleaned",
                             )
                             plt.xlabel("Wavelengths")
@@ -928,4 +942,4 @@ class WiggleCleaner(object):
         if verbose:
             print("Cleaning done!")
 
-        return self.cleaned_cube
+        return self.cleaned_datacube, self.cleaned_noisecube
