@@ -16,8 +16,9 @@
 
 
 
-Raccoon cleans modulation due to resampling noise (i.e., aliasing artifacts) in the JWST/NIRSpec IFS spectra. Check out the [demo notebook here](https://github.com/ajshajib/raccoon/blob/main/example/example_notebook.ipynb) for a quick start.
+Raccoon cleans modulation due to resampling noise (i.e., aliasing artifacts) in the JWST/NIRSpec IFS spectra. Check out the `demo notebook here`_ for a quick start.
 
+.. _`demo notebook here`: https://github.com/ajshajib/raccoon/blob/main/example/example_notebook.ipynb
 
 * Free software: MIT license
 * Documentation: https://raccoon.readthedocs.io.
