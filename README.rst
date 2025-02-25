@@ -27,7 +27,13 @@ Raccoon cleans modulation due to resampling noise (i.e., aliasing artifacts) in 
 Features
 --------
 
-* TODO
+* Removes aliasing artifacts from JWST/NIRSpec IFS spectra
+* Fast modeling of the modulations due to the resampling noise
+* Easy-to-use API
+* MIT licensed
+
+**Note**: The software is in alpha version. Please report any issues or bugs you encounter. Any direct contribution through pull requests is highly appreciated.
+
 
 Credits
 -------
