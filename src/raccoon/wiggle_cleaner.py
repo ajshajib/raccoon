@@ -3,7 +3,7 @@ __author__ = "ajshajib"
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import least_squares
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 
 from .util import Util
 from .util import polyval
@@ -239,7 +239,7 @@ class WiggleCleaner(object):
 
         return n_amplitude, n_frequency, n_offset
 
-    def loss_vector(self, params, curve, noise=None):
+    def loss_vector(self, params, curve, noise):
         """ "
         Get the residual vector.
 
@@ -356,8 +356,7 @@ class WiggleCleaner(object):
             n_amplitude, n_frequency, n_offset
         )
 
-        if specified_noise_level > 0:
-            noise = np.ones_like(curve) * specified_noise_level
+        noise = self.configure_noise(curve, noise, specified_noise_level)
 
         init_frequency_params, init_amplitude_params, init_offset_params, init_phi = (
             Util.get_init_params(
@@ -412,6 +411,27 @@ class WiggleCleaner(object):
             )
 
         return result_params
+
+    def configure_noise(self, curve, noise, specified_noise_level):
+        """
+        Configure the noise.
+
+        :param curve: Curve
+        :type curve: np.ndarray
+        :param noise: Noise
+        :type noise: np.ndarray
+        :param specified_noise_level: User-defined noise level to be used instead of the actual noise. Set to 0 to disable.
+        :type specified_noise_level: float
+        :return: Noise
+        :rtype: np.ndarray
+        """
+        if noise is None and specified_noise_level == 0:
+            raise ValueError(
+                "Noise level not set! Either provide the noise or set the specified_noise_level."
+            )
+        if specified_noise_level > 0:
+            noise = np.ones_like(curve) * specified_noise_level
+        return noise
 
     def plot_model(
         self,
@@ -485,7 +505,7 @@ class WiggleCleaner(object):
         #         self.model(x0),
         #         ls=":",
         #         label="Init",
-        #         c=purple,
+        #         c=red,
         #     )
 
         plt.xlabel("Wavelengths")
@@ -494,7 +514,7 @@ class WiggleCleaner(object):
         plt.ylim(np.min(curve) * 0.9, np.max(curve) * 1.1)
         plt.show()
 
-    def get_modulaion_curve(self, x, y, aperture_size=4):
+    def get_modulation_curve(self, x, y, aperture_size=4):
         """
         Get the modulation curve.
 
@@ -594,6 +614,8 @@ class WiggleCleaner(object):
         if min_n_frequency is None:
             min_n_frequency = n_frequency
 
+        noise = self.configure_noise(curve, noise, specified_noise_level)
+
         best_bic = None
         for i in tqdm(range(n_amplitude, min_n_amplitude - 1, -1)):
             for j in range(n_offset, min_n_offset - 1, -1):
@@ -613,7 +635,7 @@ class WiggleCleaner(object):
                     bic = self.get_bic(curve, noise, result_params)
 
                     if best_bic is None:
-                        print(
+                        tqdm.write(
                             f"n_amplitude: {i}, n_offset: {j}, n_frequency: {k}, BIC: {bic}"
                         )
                         best_n_amplitude = i
@@ -622,7 +644,7 @@ class WiggleCleaner(object):
                         best_bic = bic
                         best_params = result_params
                     elif bic < best_bic:
-                        print(
+                        tqdm.write(
                             f"n_amplitude: {i}, n_offset: {j}, n_frequency: {k}, BIC: {bic}"
                         )
                         best_n_amplitude = i
@@ -723,6 +745,11 @@ class WiggleCleaner(object):
         specified_noise_level=0.005,
         proximity_threshold=200,
         aperture_size=4,
+        min_x=None,
+        max_x=None,
+        min_y=None,
+        max_y=None,
+        conserve_flux=True,
         verbose=True,
         plot=True,
         plot_amplitude_offset=True,
@@ -750,8 +777,18 @@ class WiggleCleaner(object):
         :type specified_noise_level: float
         :param proximity_threshold: Proximity lower limit in Angstrom for initial identifaction of peaks and troughs
         :type proximity_threshold: float
-        :param aperture_size: Aperture size
+        :param aperture_size: Aperture size. Spaxels at the edges with width less than this value will not be cleaned.
         :type aperture_size: int
+        :param min_x: Minimum spaxel x to set lower limit for the cleaning process
+        :type min_x: int
+        :param max_x: Maximum spaxel x to set upper limit for the cleaning process
+        :type max_x: int
+        :param min_y: Minimum spaxel y to set lower limit for the cleaning process
+        :type min_y: int
+        :param max_y: Maximum spaxel y to set upper limit for the cleaning process
+        :type max_y: int
+        :param conserve_flux: If True, conserve flux in each spaxel
+        :type conserve_flux: bool
         :param verbose: If True, print the results
         :type verbose: bool
         :param plot: If True, plot the results
@@ -769,107 +806,124 @@ class WiggleCleaner(object):
             n_amplitude, n_frequency, n_offset
         )
 
-        # for i in range(aperture_size, self.clean_cube.shape[1] - aperture_size):
-        #     for j in range(aperture_size, self.clean_cube.shape[2] - aperture_size):
-        for i in range(83 - 2, 83 + 2):
-            for j in range(89 - 2, 89 + 2):
-                if verbose:
-                    print(f"Cleaning spaxel {i}, {j}...")
+        if min_x is None:
+            min_x = aperture_size
+        if max_x is None:
+            max_x = self.cleaned_cube.shape[1] - aperture_size
+        if min_y is None:
+            min_y = aperture_size
+        if max_y is None:
+            max_y = self.cleaned_cube.shape[2] - aperture_size
 
-                curve, noise = self.get_modulaion_curve(
-                    i, j, aperture_size=aperture_size
-                )
+        total_iterations = (max_x - min_x) * (max_y - min_y)
+        with tqdm(total=total_iterations, desc="Cleaning spaxels") as pbar:
+            for i in range(min_x, max_x):
+                for j in range(min_y, max_y):
+                    curve, noise = self.get_modulation_curve(
+                        i, j, aperture_size=aperture_size
+                    )
 
-                result_params = self.fit_curve(
-                    curve,
-                    noise,
-                    n_amplitude=5,
-                    n_frequency=3,
-                    n_offset=n_offset_default,
-                    specified_noise_level=specified_noise_level,
-                    proximity_threshold=proximity_threshold,
-                    plot=False,
-                    plot_amplitude_offset=False,
-                )
+                    result_params = self.fit_curve(
+                        curve,
+                        noise,
+                        n_amplitude=5,
+                        n_frequency=3,
+                        n_offset=n_offset_default,
+                        specified_noise_level=specified_noise_level,
+                        proximity_threshold=proximity_threshold,
+                        plot=False,
+                        plot_amplitude_offset=False,
+                    )
 
-                if self.is_wiggle_detected(
-                    curve,
-                    noise,
-                    result_params,
-                    n_offset=n_offset_default,
-                    sigma_threshold=sigma_threshold,
-                ):
-                    if (
-                        min_n_amplitude is None
-                        or min_n_frequency is None
-                        or min_n_offset is None
+                    if self.is_wiggle_detected(
+                        curve,
+                        noise,
+                        result_params,
+                        n_offset=n_offset_default,
+                        sigma_threshold=sigma_threshold,
                     ):
-                        result_params = self.fit_curve(
-                            curve,
-                            noise,
-                            n_amplitude=n_amplitude,
-                            n_frequency=n_frequency,
-                            n_offset=n_offset,
-                            specified_noise_level=specified_noise_level,
-                            proximity_threshold=proximity_threshold,
-                            plot=plot,
-                            plot_amplitude_offset=plot_amplitude_offset,
+                        if verbose:
+                            print(f"Wiggle detected!! Cleaning spaxel: {i}, {j}...")
+
+                        if (
+                            min_n_amplitude is None
+                            or min_n_frequency is None
+                            or min_n_offset is None
+                        ):
+                            result_params = self.fit_curve(
+                                curve,
+                                noise,
+                                n_amplitude=n_amplitude,
+                                n_frequency=n_frequency,
+                                n_offset=n_offset,
+                                specified_noise_level=specified_noise_level,
+                                proximity_threshold=proximity_threshold,
+                                plot=plot,
+                                plot_amplitude_offset=plot_amplitude_offset,
+                            )
+                        else:
+                            result_params = self.fit_curve_with_best_bic(
+                                curve,
+                                noise,
+                                n_amplitude=n_amplitude,
+                                n_frequency=n_frequency,
+                                n_offset=n_offset,
+                                min_n_amplitude=min_n_amplitude,
+                                min_n_frequency=min_n_frequency,
+                                min_n_offset=min_n_offset,
+                                specified_noise_level=specified_noise_level,
+                                proximity_threshold=proximity_threshold,
+                                plot=plot,
+                                plot_amplitude_offset=plot_amplitude_offset,
+                            )
+
+                        amplitude_params, frequency_params, _, phi = self.split_params(
+                            result_params
                         )
-                    else:
-                        result_params = self.fit_curve_with_best_bic(
-                            curve,
-                            noise,
-                            n_amplitude=n_amplitude,
-                            n_frequency=n_frequency,
-                            n_offset=n_offset,
-                            min_n_amplitude=min_n_amplitude,
-                            min_n_frequency=min_n_frequency,
-                            min_n_offset=min_n_offset,
-                            specified_noise_level=specified_noise_level,
-                            proximity_threshold=proximity_threshold,
-                            plot=plot,
-                            plot_amplitude_offset=plot_amplitude_offset,
+                        wave_model = self.wave_func(
+                            self.scaled_w,
+                            amplitude_params,
+                            frequency_params,
+                            phi,
                         )
 
-                    amplitude_params, frequency_params, _, phi = self.split_params(
-                        result_params
-                    )
-                    wave_model = self.wave_func(
-                        self.scaled_w,
-                        amplitude_params,
-                        frequency_params,
-                        phi,
-                    )
+                        integral = 1
+                        integral_base = 1
+                        if conserve_flux:
+                            integral = np.trapz(
+                                self.cleaned_cube[:, i, j] / wave_model, self.scaled_w
+                            )
+                            integral_base = np.trapz(
+                                self._datacube[:, i, j], self.scaled_w
+                            )
 
-                    # conserve flux in each spaxel
-                    integral = np.trapz(
-                        self.cleaned_cube[:, i, j] / wave_model, self.scaled_w
-                    )
-                    integral_base = np.trapz(self._datacube[:, i, j], self.scaled_w)
-
-                    self.cleaned_cube[:, i, j] = (
-                        (self.cleaned_cube[:, i, j] / wave_model)
-                        / integral
-                        * integral_base
-                    )
-
-                    if plot:
-                        plt.plot(
-                            self._wavelengths, self._datacube[:, i, j], label="Input"
+                        self.cleaned_cube[:, i, j] = (
+                            (self.cleaned_cube[:, i, j] / wave_model)
+                            / integral
+                            * integral_base
                         )
-                        plt.plot(
-                            self._wavelengths,
-                            self.cleaned_cube[:, i, j],
-                            label="Cleaned",
-                        )
-                        plt.xlabel("Wavelengths")
-                        plt.ylabel("Flux")
-                        plt.title(f"Spaxel {i}, {j}")
-                        plt.legend()
-                        plt.show()
-                else:
-                    if verbose:
-                        print(f"No wiggle detected at {i}, {j}, skipping...")
+
+                        if plot:
+                            plt.plot(
+                                self._wavelengths,
+                                self._datacube[:, i, j],
+                                label="Input",
+                            )
+                            plt.plot(
+                                self._wavelengths,
+                                self.cleaned_cube[:, i, j],
+                                label="Cleaned",
+                            )
+                            plt.xlabel("Wavelengths")
+                            plt.ylabel("Flux")
+                            plt.title(f"Spaxel {i}, {j}")
+                            plt.legend()
+                            plt.show()
+                        # else:
+                        #     if verbose:
+                        #         print(f"No wiggle detected at spaxel: {i}, {j}, skipping...")
+
+                    pbar.update(1)
 
         if verbose:
             print("Cleaning done!")
