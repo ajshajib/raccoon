@@ -464,7 +464,6 @@ class WiggleCleaner(object):
         plt.plot(
             self._wavelengths,
             curve,
-            label="Input",
             ls="None",
             marker="o",
             markersize=2,
