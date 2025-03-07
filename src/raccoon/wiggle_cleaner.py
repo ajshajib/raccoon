@@ -17,7 +17,7 @@ class WiggleCleaner(object):
         wavelengths,
         datacube,
         noise_cube,
-        gaps,
+        gaps=None,
         n_amplitude=9,
         n_frequency=9,
         n_offset=9,
@@ -53,9 +53,25 @@ class WiggleCleaner(object):
         self._symmetric_sharpenning = symmetric_sharpenning
         self._asymmetric_sharpenning = asymmetric_sharpenning
 
-        gap_mask = np.ones_like(wavelengths)
+        if gaps is None:
+            self._gaps = []
+            self._gap_mask = np.ones_like(self._wavelengths)
+        else:
+            self.set_gaps(gaps)
+
+    def set_gaps(self, gaps):
+        """
+        Set the gaps to be ignored during the fitting process.
+
+        :param gaps: List of wavelength ranges to be ignored
+        :type gaps: list of tuples
+        :return: None
+        :rtype: None
+        """
+        self._gaps = gaps
+        gap_mask = np.ones_like(self._wavelengths)
         for g in self._gaps:
-            mask = (wavelengths > g[0]) & (wavelengths < g[1])
+            mask = (self._wavelengths > g[0]) & (self._wavelengths < g[1])
             gap_mask[mask] = 0
         self._gap_mask = np.array(gap_mask)
 
@@ -523,8 +539,8 @@ class WiggleCleaner(object):
         :type spaxel_y: int
         :param aperture: aperture size to sum the spectra to average out the wiggles
         :type aperture: int
-        :return: Modulation curve
-        :rtype: np.ndarray
+        :return: Modulation curve and noise
+        :rtype: Tuple of np.ndarray
         """
         spectra = self._datacube[:, x, y]
         noise = self._noise_cube[:, x, y]
