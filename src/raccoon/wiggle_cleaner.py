@@ -3,6 +3,8 @@ __author__ = "ajshajib"
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import least_squares
+from scipy.optimize import minimize_scalar
+from scipy.linalg import lstsq
 from tqdm.notebook import tqdm
 
 from .util import Util
@@ -83,7 +85,7 @@ class WiggleCleaner(object):
         :return: Scaled wavelengths
         :rtype: np.ndarray
         """
-        return self.scale_wavelengths_to_1_m1(self._wavelengths)
+        return self.scale_wavelengths_negative1_to_1(self._wavelengths)
 
     def wiggle_func(
         self, xs, amplitude_params, frequency_params, offset_params, phi, k_1=0, k_2=0
@@ -143,7 +145,7 @@ class WiggleCleaner(object):
 
         return 1.0 + amplitude * wave_function
 
-    def scale_wavelengths_to_1_m1(self, w):
+    def scale_wavelengths_negative1_to_1(self, w):
         """
         Scale the wavelengths to -1 to 1.
 
@@ -155,6 +157,19 @@ class WiggleCleaner(object):
         return (w - self._wavelengths[0]) / (
             self._wavelengths[-1] - self._wavelengths[0]
         ) * 2 - 1
+
+    def scale_wavelengths_to_0_1(self, w):
+        """
+        Scale the wavelengths to 0 to 1.
+
+        :param w: Wavelengths
+        :type w: np.ndarray
+        :return: Scaled wavelengths
+        :rtype: np.ndarray
+        """
+        return (w - self._wavelengths[0]) / (
+            self._wavelengths[-1] - self._wavelengths[0]
+        )
 
     def model(self, params):
         """
@@ -529,7 +544,12 @@ class WiggleCleaner(object):
         plt.ylim(np.min(curve) * 0.9, np.max(curve) * 1.1)
         plt.show()
 
-    def get_modulation_curve(self, x, y, aperture_size=4):
+    def get_modulation_curve(
+        self,
+        x,
+        y,
+        aperture_size=4,
+    ):
         """
         Get the modulation curve.
 
@@ -544,6 +564,7 @@ class WiggleCleaner(object):
         """
         spectra = self._datacube[:, x, y]
         noise = self._noise_cube[:, x, y]
+        wavelengths = self.scale_wavelengths_negative1_to_1(self._wavelengths)
 
         # make circular mask around the pixel with radius s
         mask = np.zeros_like(self._datacube[0], dtype=bool)
@@ -554,30 +575,49 @@ class WiggleCleaner(object):
                     mask[i, j] = True
 
         aperture_spectra = np.nansum(self._datacube[:, mask], axis=(1))
-        aperture_spectra /= np.nanmax(aperture_spectra) / np.nanmax(
-            self._datacube[:, x, y]
-        )
         aperture_noise = np.sqrt(np.nansum(self._noise_cube[:, mask] ** 2, axis=(1)))
-        aperture_noise /= np.nanmax(aperture_noise) / np.nanmax(noise)
 
-        curve = spectra / aperture_spectra
-        curve_noise = np.nan_to_num(
-            np.abs(
-                np.sqrt(
-                    (noise / spectra) ** 2 + (aperture_noise / aperture_spectra) ** 2
-                )
-                * curve
-            ),
-            nan=1e10,
+        # fit c_1 * aperture_spectra + c_2 * shell_spectra + c_3 * wavelengths**a + (c_4 * wavelengths**2 + c_5 * wavelengths + c_6)
+        # given non-linear parameter a, treat all c_1 parameters as linear parameters and derive them using linear inversion
+
+        def model(a):
+            # Construct the design matrix for the current 'a'
+            A = np.column_stack(
+                [
+                    aperture_spectra,
+                    self.scale_wavelengths_to_0_1(self._wavelengths) ** a,
+                    wavelengths**2,
+                    wavelengths,
+                    np.ones_like(wavelengths),
+                ]
+            )
+
+            # Solve the linear least squares problem
+            coefficients, _, _, _ = lstsq(A, spectra)
+
+            return A @ coefficients, coefficients
+
+        def residual(a):
+            model_spectra, _ = model(a)
+            return np.sum(model_spectra - spectra) ** 2
+
+        result = minimize_scalar(residual, bounds=[0, 6], method="bounded")
+        best_model, _ = model(result.x)
+
+        model_noise = aperture_noise / aperture_spectra * best_model
+
+        curve = spectra / best_model
+        curve_noise = (
+            np.sqrt((noise / spectra) ** 2 + (model_noise / best_model) ** 2) * curve
         )
 
         # replace non-positive noise with minimum non-negative value
         curve_noise[curve_noise <= 0] = np.nanmin(curve_noise[curve_noise > 0])
 
-        # normalize the curve
-        median = np.nanmedian(curve)
-        curve /= median
-        curve_noise /= median
+        # # normalize the curve
+        # median = np.nanmedian(curve)
+        # curve /= median
+        # curve_noise /= median
 
         return curve, curve_noise
 
