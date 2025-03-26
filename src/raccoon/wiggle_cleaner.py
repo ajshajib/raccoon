@@ -7,6 +7,7 @@ from scipy.optimize import minimize_scalar
 from scipy.linalg import lstsq
 from tqdm.notebook import tqdm
 
+
 from .util import Util
 from .util import polyval
 from .util import polyfit
@@ -621,7 +622,7 @@ class WiggleCleaner(object):
 
         return curve, curve_noise
 
-    def fit_curve_with_best_bic(
+    def fit_curve_with_model_selection(
         self,
         curve,
         noise=None,
@@ -635,6 +636,7 @@ class WiggleCleaner(object):
         proximity_threshold=200,
         plot=False,
         plot_amplitude_offset=False,
+        selection_criteria="bic",
     ):
         """
         Fit the curve with selecting amplitude polynomial order based on BIC.
@@ -663,6 +665,8 @@ class WiggleCleaner(object):
         :type plot: bool
         :param plot_amplitude_offset: If True, plot the amplitude and offset
         :type plot_amplitude_offset: bool
+        :param selection_criteria: Selection criteria, "bic" or "chi2"
+        :type selection_criteria: str
         :return: Fitted parameters
         :rtype: np.ndarray
         """
@@ -676,7 +680,7 @@ class WiggleCleaner(object):
 
         noise = self.configure_noise(curve, noise, specified_noise_level)
 
-        best_bic = None
+        best_metric = None
         for i in tqdm(range(n_amplitude, min_n_amplitude - 1, -1)):
             for j in range(n_offset, min_n_offset - 1, -1):
                 for k in range(n_frequency, min_n_frequency - 1, -1):
@@ -692,25 +696,30 @@ class WiggleCleaner(object):
                         plot_amplitude_offset=False,
                     )
 
-                    bic = self.get_bic(curve, noise, result_params)
+                    fit_metric = self.get_model_selection_metric(
+                        curve,
+                        noise,
+                        result_params,
+                        selection_criteria=selection_criteria,
+                    )
 
-                    if best_bic is None:
+                    if best_metric is None:
                         tqdm.write(
-                            f"n_amplitude: {i}, n_offset: {j}, n_frequency: {k}, BIC: {bic}"
+                            f"n_amplitude: {i}, n_offset: {j}, n_frequency: {k}, {selection_criteria}: {fit_metric}"
                         )
                         best_n_amplitude = i
                         best_n_offset = j
                         best_n_frequency = k
-                        best_bic = bic
+                        best_metric = fit_metric
                         best_params = result_params
-                    elif bic < best_bic:
+                    elif fit_metric < best_metric:
                         tqdm.write(
-                            f"n_amplitude: {i}, n_offset: {j}, n_frequency: {k}, BIC: {bic}"
+                            f"n_amplitude: {i}, n_offset: {j}, n_frequency: {k}, {selection_criteria}: {fit_metric}"
                         )
                         best_n_amplitude = i
                         best_n_offset = j
                         best_n_frequency = k
-                        best_bic = bic
+                        best_metric = fit_metric
                         best_params = result_params
 
         print("Best n_amplitude: ", best_n_amplitude)
@@ -734,9 +743,11 @@ class WiggleCleaner(object):
 
         return best_params
 
-    def get_bic(self, curve, noise, result_params):
+    def get_model_selection_metric(
+        self, curve, noise, result_params, selection_criteria="bic"
+    ):
         """
-        Get the BIC.
+        Get the fit metric: BIC or chi^2.
 
         :param curve: Curve
         :type curve: np.ndarray
@@ -744,13 +755,22 @@ class WiggleCleaner(object):
         :type noise: np.ndarray
         :param result_params: Fitted parameters
         :type result_params: np.ndarray
-        :return: BIC
+        :param selection_criteria: Selection criteria, "bic" or "chi2"
+        :type selection_criteria: str
+        :return: Fit metric
         :rtype: float
         """
-        n = len(curve)
+        n_dof = np.sum(self._gap_mask)
         k = len(result_params)
-        loss = self.loss(result_params, curve, noise)
-        return n * np.log(loss) + k * np.log(n)
+
+        chi2 = self.loss(result_params, curve, noise)
+
+        if selection_criteria == "bic":
+            return chi2 + k * np.log(n_dof)
+        elif selection_criteria == "chi2":
+            return chi2
+        else:
+            raise ValueError("Invalid selection_criteria!")
 
     def is_wiggle_detected(
         self, curve, noise, result_params, n_offset=5, sigma_threshold=5
