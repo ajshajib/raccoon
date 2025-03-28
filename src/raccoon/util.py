@@ -2,6 +2,8 @@ __author__ = "ajshajib"
 
 import numpy as np
 from scipy.signal import savgol_filter
+from scipy.interpolate import make_lsq_spline
+from copy import deepcopy
 import matplotlib.pyplot as plt
 from numpy.polynomial.chebyshev import chebfit
 from numpy.polynomial.chebyshev import chebval
@@ -250,6 +252,90 @@ class Util(object):
         return frequency_params, amplitude_params, offset_params, init_phi
 
     @classmethod
+    def get_init_params_spline(
+        cls,
+        curve,
+        scaled_wavelengths,
+        n_amplitude=2,
+        n_frequency=1,
+        proximity_threshold=50,
+        plot=False,
+    ):
+        """
+        Get initial parameters for curve fitting using spline-based amplitude and frequency.
+
+        :param curve: 1D numpy array of spectral values
+        :param scaled_wavelengths: Corresponding wavelength values
+        :param n_amplitude: Number of knots for amplitude spline
+        :param n_frequency: Number of knots for frequency spline
+        :param proximity_threshold: Minimum distance between extrema (in indices)
+        :param plot: Whether to show diagnostic plots
+        :return: Tuple containing (amplitude_spline, frequency_spline, phase_offset)
+        """
+        peaks, troughs, midpoints, extrema = cls.find_init_peaks_troughs_mids(
+            curve, proximity_threshold=proximity_threshold
+        )
+
+        lighter_smooth_curve = cls.lighter_smooth_curve(curve)
+
+        extrema_values = lighter_smooth_curve[extrema]
+        extrema_sw = scaled_wavelengths[extrema]
+
+        amp_spline, frequency_spline, init_phi = (
+            cls.fit_sine_function_to_extrema_spline(
+                extrema_sw,
+                extrema_values,
+                np.array([True if i in peaks else False for i in extrema]),
+                n_amplitude,
+                n_frequency,
+                phi_0=None,
+            )
+        )
+
+        if plot:
+            plt.plot(scaled_wavelengths, curve, label="Input")
+            plt.plot(scaled_wavelengths, lighter_smooth_curve, label="Smoothed")
+            plt.scatter(
+                scaled_wavelengths[peaks], lighter_smooth_curve[peaks], c="r", zorder=10
+            )
+            plt.scatter(
+                scaled_wavelengths[troughs],
+                lighter_smooth_curve[troughs],
+                c="b",
+                zorder=10,
+            )
+            plt.plot(
+                scaled_wavelengths,
+                1 + amp_spline(scaled_wavelengths),
+                c="r",
+                ls="--",
+                label="Amplitude",
+            )
+            plt.plot(
+                scaled_wavelengths,
+                cls.fitted_sine_function_spline(
+                    scaled_wavelengths,
+                    amp_spline,
+                    frequency_spline,
+                    init_phi,
+                ),
+                c="k",
+                ls="--",
+                label="Fitted",
+            )
+            plt.legend()
+            plt.show()
+
+            plt.plot(
+                scaled_wavelengths,
+                frequency_spline(scaled_wavelengths),
+                label="Frequency",
+            )
+            plt.show()
+
+        return amp_spline, frequency_spline, init_phi
+
+    @classmethod
     def get_linear_freq_coeffs_from_extrema(cls, extrema, scaled_wavelengths):
         """
         Get the linear frequency coefficients from the extrema.
@@ -376,6 +462,89 @@ class Util(object):
         return amplitude_coeffs, offset_coeffs, frequency_coeffs, phi_0
 
     @classmethod
+    def fit_sine_function_to_extrema_spline(
+        cls,
+        extrema_positions,
+        extrema_vals,
+        is_peak,
+        n_amplitude,
+        n_frequency,
+        phi_0=None,
+    ):
+        """
+        Fit a wiggly function to the peaks and troughs of a curve.
+
+        :param extrema_positions: Positions of the extrema
+        :type extrema_positions: np.ndarray
+        :param extrema_vals: Values of the extrema
+        :type extrema_vals: np.ndarray
+        :param is_peak: If True, the extrema are peaks, otherwise they are troughs
+        :type is_peak: np.ndarray
+        :param n_amplitude: Degree of the polynomial for the amplitude
+        :type n_amplitude: int
+        :param n_offset: Degree of the polynomial for the offset
+        :type n_offset: int
+        :param n_frequency: Degree of the polynomial for the frequency
+        :type n_frequency: int
+        :param phi_0: Phase offset
+        :type phi_0: float
+        :return: amplitude coefficients, offset coefficients, frequency coefficients, phase offset
+        """
+        sorted_indices = np.argsort(extrema_positions)
+        extrema_positions = extrema_positions[sorted_indices]
+        extrema_values = extrema_vals[sorted_indices] - 1
+        is_peak = is_peak[sorted_indices]
+
+        # Fit amplitude A(x) spline
+        abs_y = np.abs(extrema_values)
+
+        # uniform knots
+        knots = np.linspace(extrema_positions[0], extrema_positions[-1], n_amplitude)
+        degree = 3  # Cubic spline
+        t = np.r_[
+            [knots[0]] * degree, knots, [knots[-1]] * degree
+        ]  # Extend knots for boundary conditions
+
+        amp_spline = make_lsq_spline(extrema_positions, abs_y, t=t, k=degree)
+
+        # Fit frequency polynomial F(x)
+        A_freq = []
+        b_freq = []
+        for i in range(1, len(extrema_positions)):
+            x_start = extrema_positions[i - 1]
+            x_end = extrema_positions[i]
+            # Phase difference required between points (π for peak-trough, 2π otherwise)
+            delta_phase = np.pi if (is_peak[i - 1] != is_peak[i]) else 2 * np.pi
+            # Equation: sum(F_k * (x_end^{k+1} - x_start^{k+1}) = delta_phase
+            equation = [
+                x_end ** (k + 1) - x_start ** (k + 1) for k in range(n_frequency + 1)
+            ]
+            A_freq.append(equation)
+            b_freq.append(delta_phase)
+        frequency_coeffs = np.linalg.lstsq(A_freq, b_freq, rcond=None)[0]
+
+        # Compute phase offset phi_0
+        x0 = extrema_positions[0]
+        # Compute F(x0) * x0
+        F_x0 = np.polyval(frequency_coeffs[::-1], x0)  # Reverse coeffs for polyval
+        F_x0_x0 = F_x0 * x0
+
+        # φ(x0) should be π/2 for peaks, 3π/2 for troughs
+        target_phase = np.pi / 2 if is_peak[0] else 3 * np.pi / 2
+        phi_0 = target_phase - F_x0_x0
+        # target_phase = np.pi / 2 if is_peak[0] else 3 * np.pi / 2
+        # phi0 = target_phase - 2 * np.pi * F_x0
+
+        frequency_at_extrema = np.polyval(frequency_coeffs[::-1], extrema_positions)
+        knots = np.linspace(extrema_positions[0], extrema_positions[-1], n_frequency)
+        t = np.r_[[knots[0]] * degree, knots, [knots[-1]] * degree]
+        frequency_spline = make_lsq_spline(
+            extrema_positions, frequency_at_extrema, t=t, k=degree
+        )
+
+        return amp_spline, frequency_spline, phi_0
+
+    @classmethod
     def fitted_sine_function(
         cls, xs, amplitude_coeffs, offset_coeffs, frequency_coeffs, phi_0
     ):
@@ -400,3 +569,26 @@ class Util(object):
         freq = polyval(frequency_coeffs, xs)
 
         return 1 + amp * np.sin(freq * xs + phi_0) + offset
+
+    @classmethod
+    def fitted_sine_function_spline(cls, xs, amp_spline, frequency_spline, phi_0):
+        """
+        Evaluate the fitted sine function at x.
+
+        :param xs: x values
+        :type xs: np.ndarray
+        :param amplitude_coeffs: Amplitude coefficients
+        :type amplitude_coeffs: np.ndarray
+        :param offset_coeffs: Offset coefficients
+        :type offset_coeffs: np.ndarray
+        :param frequency_coeffs: Frequency coefficients
+        :type frequency_coeffs: np.ndarray
+        :param phi_0: Phase offset
+        :type phi_0: float
+        :return: Fitted sine function values
+        :rtype: np.ndarray
+        """
+        amp = amp_spline(xs)
+        freq = frequency_spline(xs)
+
+        return 1 + amp * np.sin(freq * xs + phi_0)
