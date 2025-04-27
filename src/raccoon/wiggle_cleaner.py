@@ -410,6 +410,7 @@ class WiggleCleaner(object):
         plot=False,
         verbose=False,
         do_interim_fit_phase_only=False,
+        extract_covariance=True,
     ):
         """
         Fit the curve.
@@ -432,6 +433,14 @@ class WiggleCleaner(object):
         :type verbose: bool
         :param do_interim_fit_phase_only: If True, do an interim fit with phase only
         :type do_interim_fit_phase_only: bool
+        :param sigma_clip: Sigma clip threshold
+        :type sigma_clip: float
+        :param sigma_clip_iterations: Number of sigma clip iterations
+        :type sigma_clip_iterations: int
+        :param sigma_clip_fraction: Fraction of pixels to keep after sigma clipping
+        :type sigma_clip_fraction: float
+        :param extract_uncertainty: If True, extract the uncertainties
+        :type extract_uncertainty: bool
         :return: Fitted parameters
         :rtype: np.ndarray
         """
@@ -510,6 +519,29 @@ class WiggleCleaner(object):
 
         result_params = result.x
 
+        if extract_covariance:
+            residuals = result.fun
+            jacobian = result.jac
+
+            # Get number of observations (m) and parameters (n)
+            m, n = jacobian.shape
+
+            # Check degrees of freedom
+            if m <= n:
+                raise ValueError(
+                    "Number of observations must exceed number of parameters to estimate uncertainty."
+                )
+
+            # Calculate residual sum of squares and variance estimate
+            sum_of_squared_residuals = np.sum(residuals**2)
+            dof = m - n
+            sigma_squared = sum_of_squared_residuals / dof
+
+            # Compute covariance matrix using pseudoinverse for stability
+            cov_matrix = sigma_squared * np.linalg.pinv(jacobian.T @ jacobian)
+        else:
+            cov_matrix = None
+
         if verbose:
             print("Loss: ", self.loss(result_params, curve, noise))
 
@@ -521,9 +553,10 @@ class WiggleCleaner(object):
                 n_amplitude,
                 n_frequency,
                 x0,
+                cov_matrix=cov_matrix,
             )
 
-        return result_params
+        return result_params, cov_matrix
 
     def configure_noise(self, curve, noise, specified_noise_level):
         """
@@ -554,6 +587,8 @@ class WiggleCleaner(object):
         n_amplitude,
         n_frequency,
         x0=None,
+        cov_matrix=None,
+        num_samples_uncertainty_region=1000,
     ):
         red = "#e41a1c"
         blue = "#377eb8"
@@ -595,8 +630,29 @@ class WiggleCleaner(object):
         #     alpha=0.6,
         # )
         plt.plot(
-            self._wavelengths, self.model(result_params), label="Model", lw=2, c=orange
+            self._wavelengths, self.model(result_params), label="Model", lw=1, c=orange
         )
+
+        if cov_matrix is not None:
+            models = []
+            for i in range(num_samples_uncertainty_region):
+                sampled_params = np.random.multivariate_normal(
+                    result_params, cov_matrix, 1
+                )[0]
+                models.append(self.model(sampled_params))
+
+            models = np.array(models)
+
+            model_up, model_down = np.percentile(models, [16, 84], axis=0)
+
+            plt.fill_between(
+                self._wavelengths,
+                model_down,
+                model_up,
+                color=orange,
+                alpha=0.2,
+            )
+
         for g in self._gaps:
             plt.axvspan(g[0], g[1], color="black", alpha=0.1)
 
@@ -708,6 +764,7 @@ class WiggleCleaner(object):
         sigma_clip=5,
         sigma_clip_iterations=3,
         sigma_clip_fraction=0.3,
+        extract_uncertainty=False,
     ):
         """
         Fit the curve with selecting amplitude polynomial order based on BIC.
@@ -732,6 +789,16 @@ class WiggleCleaner(object):
         :type plot: bool
         :param selection_criteria: Selection criteria, "bic" or "chi2"
         :type selection_criteria: str
+        :param sigma_clip: Sigma clip threshold
+        :type sigma_clip: float
+        :param sigma_clip_iterations: Number of sigma clip iterations
+        :type sigma_clip_iterations: int
+        :param sigma_clip_fraction: Fraction of pixels to keep after sigma clipping
+        :type sigma_clip_fraction: float
+        :param combine_bic_weighted: If True, combine the BIC weighted by the number of parameters
+        :type combine_bic_weighted: bool
+        :param extract_uncertainty: If True, extract the uncertainties
+        :type extract_uncertainty: bool
         :return: Fitted parameters
         :rtype: np.ndarray
         """
@@ -753,7 +820,7 @@ class WiggleCleaner(object):
         best_metric = None
         for i in tqdm(range(n_amplitude, min_n_amplitude - 1, -1)):
             for k in range(n_frequency, min_n_frequency - 1, -1):
-                result_params = self.fit_curve(
+                result_params, cov_matrix = self.fit_curve(
                     curve,
                     noise,
                     n_amplitude=i,
@@ -764,6 +831,7 @@ class WiggleCleaner(object):
                     sigma_clip=sigma_clip,
                     sigma_clip_iterations=sigma_clip_iterations,
                     sigma_clip_fraction=sigma_clip_fraction,
+                    extract_covariance=extract_uncertainty,
                 )
 
                 fit_metric = self.get_model_selection_metric(
@@ -789,7 +857,7 @@ class WiggleCleaner(object):
                     best_n_frequency = k
                     best_metric = fit_metric
 
-        best_params = self.fit_curve(
+        best_params, cov_matrix = self.fit_curve(
             curve,
             noise,
             n_amplitude=best_n_amplitude,
@@ -800,6 +868,7 @@ class WiggleCleaner(object):
             sigma_clip=sigma_clip,
             sigma_clip_iterations=sigma_clip_iterations,
             sigma_clip_fraction=sigma_clip_fraction,
+            extract_covariance=extract_uncertainty,
         )
 
         print("Best n_amplitude: ", best_n_amplitude)
@@ -815,9 +884,10 @@ class WiggleCleaner(object):
                 best_params,
                 best_n_amplitude,
                 best_n_frequency,
+                cov_matrix=cov_matrix,
             )
 
-        return best_params
+        return best_params, cov_matrix
 
     def get_model_selection_metric(
         self, curve, noise, result_params, selection_criteria="bic"
