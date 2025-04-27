@@ -85,6 +85,50 @@ class WiggleCleaner(object):
         self._gap_mask = np.array(gap_mask)
 
     @property
+    def symmetric_sharpening(self):
+        """
+        Get the symmetric sharpening flag.
+
+        :return: Symmetric sharpening flag
+        :rtype: bool
+        """
+        return self._symmetric_sharpening
+
+    @symmetric_sharpening.setter
+    def symmetric_sharpening(self, value):
+        """
+        Set the symmetric sharpening flag.
+
+        :param value: Symmetric sharpening flag
+        :type value: bool
+        :return: None
+        :rtype: None
+        """
+        self._symmetric_sharpening = value
+
+    @property
+    def asymmetric_sharpening(self):
+        """
+        Get the asymmetric sharpening flag.
+
+        :return: Asymmetric sharpening flag
+        :rtype: bool
+        """
+        return self._asymmetric_sharpening
+
+    @asymmetric_sharpening.setter
+    def asymmetric_sharpening(self, value):
+        """
+        Set the asymmetric sharpening flag.
+
+        :param value: Asymmetric sharpening flag
+        :type value: bool
+        :return: None
+        :rtype: None
+        """
+        self._asymmetric_sharpening = value
+
+    @property
     def scaled_w(self):
         """
         Scaled wavelengths
