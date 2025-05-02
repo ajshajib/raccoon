@@ -5,13 +5,20 @@ from copy import deepcopy
 import matplotlib.pyplot as plt
 from scipy.optimize import least_squares
 from scipy.optimize import minimize_scalar
+from scipy.special import huber
 from scipy.linalg import lstsq
+from astropy.stats import sigma_clip
+from scipy import stats
+from statsmodels.stats.multitest import fdrcorrection
+
+# from statsmodels.robust import mad
 from tqdm.notebook import tqdm
 
 
 from .util import Util
-from .util import polyval
-from .util import polyfit
+
+# from .util import polyval
+# from .util import polyfit
 
 
 class WiggleCleaner(object):
@@ -22,8 +29,6 @@ class WiggleCleaner(object):
         datacube,
         noise_cube,
         gaps=None,
-        n_amplitude=9,
-        n_frequency=9,
         symmetric_sharpening=False,
         asymmetric_sharpening=False,
     ):
@@ -46,13 +51,19 @@ class WiggleCleaner(object):
         :type symmetric_sharpening: bool
         :param asymmetric_sharpening: If True, use sharpen and smooth oppositely on peaks and troughs
         :type asymmetric_sharpening: bool
+        :param use_huber_loss: If True, use Huber loss function
+        :type use_huber_loss: bool
+        :param huber_delta: Delta for Huber loss function
+        :type huber_delta: float
+        :param outlier_detection: Outlier detection method, "fdr" or "sigma_clip", set None to disable
+        :type outlier_detection: str
         """
         self._wavelengths = np.array(wavelengths)
         self._datacube = datacube
         self._noise_cube = noise_cube
         self._gaps = np.array(gaps)
-        self._n_amplitude = n_amplitude
-        self._n_frequency = n_frequency
+        self._n_amplitude = -1
+        self._n_frequency = -1
 
         self._symmetric_sharpening = symmetric_sharpening
         self._asymmetric_sharpening = asymmetric_sharpening
@@ -60,13 +71,18 @@ class WiggleCleaner(object):
         self._amplitude_spline = None
         self._frequency_spline = None
 
+        self._use_huber_loss = False
+        self._huber_delta = 1.35
+
+        self._outlier_rejection_method = None
+
         if gaps is None:
             self._gaps = []
             self._gap_mask = np.ones_like(self._wavelengths)
         else:
             self.set_gaps(gaps)
 
-        self._sigma_clip_mask = np.ones_like(self._wavelengths)
+        self._outlier_mask = np.ones_like(self._wavelengths)
 
     def set_gaps(self, gaps):
         """
@@ -317,7 +333,7 @@ class WiggleCleaner(object):
 
         return n_amplitude, n_frequency
 
-    def loss_vector(self, params, curve, noise):
+    def residual_vector(self, params, curve, noise):
         """ "
         Get the residual vector.
 
@@ -333,13 +349,13 @@ class WiggleCleaner(object):
         model = self.model(params)
 
         residual = (model - curve) / noise
-        residual = residual * self._gap_mask * self._sigma_clip_mask
+        residual = residual * self._gap_mask * self._outlier_mask
 
         return residual
 
-    def loss(self, params, curve, noise):
+    def cost_function(self, params, curve, noise):
         """
-        Get the loss.
+        Get the cost.
 
         :param params: Parameters
         :type params: np.ndarray
@@ -347,10 +363,16 @@ class WiggleCleaner(object):
         :type curve: np.ndarray
         :param noise: Noise
         :type noise: np.ndarray
-        :return: Loss
+        :return: cost
         :rtype: float
         """
-        return np.sum(self.loss_vector(params, curve, noise) ** 2)
+        residual = self.residual_vector(params, curve, noise)
+        if self._use_huber_loss:
+            cost = huber(self._huber_delta, residual)
+        else:
+            cost = np.sum(residual**2)
+
+        return cost
 
     def get_residual_func(self, curve, noise):
         """
@@ -365,7 +387,7 @@ class WiggleCleaner(object):
         """
 
         def residual_func(params):
-            return self.loss_vector(params, curve, noise)
+            return self.residual_vector(params, curve, noise)
 
         return residual_func
 
@@ -392,7 +414,7 @@ class WiggleCleaner(object):
                 params[:-1],
                 params[-1],
             )
-            return self.loss_vector(new_params, curve, noise)
+            return self.residual_vector(new_params, curve, noise)
 
         return residual_func
 
@@ -404,13 +426,15 @@ class WiggleCleaner(object):
         n_frequency=None,
         specified_noise_level=0.005,
         proximity_threshold=200,
-        sigma_clip=5,
-        sigma_clip_iterations=3,
-        sigma_clip_fraction=0.3,
-        plot=False,
-        verbose=False,
         do_interim_fit_phase_only=False,
         extract_covariance=True,
+        outlier_rejection_method=None,
+        use_huber_loss=False,
+        huber_delta=1.35,
+        sigma_clip=5,
+        sigma_clip_max_iterations=5,
+        plot=False,
+        verbose=False,
     ):
         """
         Fit the curve.
@@ -435,16 +459,18 @@ class WiggleCleaner(object):
         :type do_interim_fit_phase_only: bool
         :param sigma_clip: Sigma clip threshold
         :type sigma_clip: float
-        :param sigma_clip_iterations: Number of sigma clip iterations
-        :type sigma_clip_iterations: int
-        :param sigma_clip_fraction: Fraction of pixels to keep after sigma clipping
-        :type sigma_clip_fraction: float
+        :param sigma_clip_max_iterations: Number of sigma clip iterations
+        :type sigma_clip_max_iterations: int
         :param extract_uncertainty: If True, extract the uncertainties
         :type extract_uncertainty: bool
+        :param outlier_rejection_method: Outlier rejection method, "fdr" or "sigma_clip", set None to disable
+        :type outlier_rejection_method: str
+        :param huber_delta: Delta for Huber loss function
+        :type huber_delta: float
         :return: Fitted parameters
         :rtype: np.ndarray
         """
-        self._sigma_clip_mask = np.ones_like(self._wavelengths)
+        self._outlier_mask = np.ones_like(self._wavelengths)
 
         n_amplitude, n_frequency = self.configure_polynomial_ns(
             n_amplitude, n_frequency
@@ -500,22 +526,52 @@ class WiggleCleaner(object):
         elif self._symmetric_sharpening or self._asymmetric_sharpening:
             x0 = np.concatenate([x0, np.array([0])])
 
+        self._outlier_rejection_method = outlier_rejection_method
+        self._huber_delta = huber_delta
+        self._sigma_clip = sigma_clip
+        self._sigma_clip_max_iterations = sigma_clip_max_iterations
+        self._use_huber_loss = use_huber_loss
+
+        is_turn_off_huber_loss = False
+        if outlier_rejection_method == "fdr":
+            if not self._use_huber_loss:
+                is_turn_off_huber_loss = True
+
+            self._use_huber_loss = True
+
         result = least_squares(self.get_residual_func(curve, noise), x0)
 
-        for i in range(sigma_clip_iterations):
-            residual = np.abs(self.loss_vector(result.x, curve, noise))
-            # Keep the top sigma_clip_fraction fraction of the residuals
-            residuals = residual[residual > sigma_clip]
-            if len(residuals) == 0:
-                break
-            threshold = np.percentile(residuals, 100 * (1 - sigma_clip_fraction))
-            clipped_pixels = residual > threshold
-            self._sigma_clip_mask[clipped_pixels] = 0
+        if self._outlier_rejection_method is not None:
+            residual = self.residual_vector(result.x, curve, noise)
+
+            clipped_pixels = self.reject_outliers(
+                residual, Q=0.01, num_params=len(result.x)
+            )
+
+            self._outlier_mask[clipped_pixels] = 0
+
+            if is_turn_off_huber_loss:
+                self._use_huber_loss = False
 
             result = least_squares(
                 self.get_residual_func(curve, noise),
                 result.x,
             )
+
+        # for i in range(sigma_clip_iterations):
+        #     residual = np.abs(self.residual_vector(result.x, curve, noise))
+        #     # Keep the top sigma_clip_fraction fraction of the residuals
+        #     residuals = residual[residual > sigma_clip]
+        #     if len(residuals) == 0:
+        #         break
+        #     threshold = np.percentile(residuals, 100 * (1 - sigma_clip_fraction))
+        #     clipped_pixels = residual > threshold
+        #     self._outlier_mask[clipped_pixels] = 0
+
+        #     result = least_squares(
+        #         self.get_residual_func(curve, noise),
+        #         result.x,
+        #     )
 
         result_params = result.x
 
@@ -543,7 +599,7 @@ class WiggleCleaner(object):
             cov_matrix = None
 
         if verbose:
-            print("Loss: ", self.loss(result_params, curve, noise))
+            print("Loss: ", self.cost_function(result_params, curve, noise))
 
         if plot:
             self.plot_model(
@@ -557,6 +613,50 @@ class WiggleCleaner(object):
             )
 
         return result_params, cov_matrix
+
+    def reject_outliers(self, residual, num_params=0, Q=0.01):
+        """
+        Reject outliers using the selected method.
+
+        :param residual: Residuals
+        :type residual: np.ndarray
+        :return: Indices of outliers
+        :rtype: np.ndarray
+        """
+        outlier_mask = np.zeros_like(residual, dtype=bool)
+
+        if self._outlier_rejection_method == "sigma_clip":
+            clipped = sigma_clip(
+                residual,
+                sigma=self._sigma_clip,
+                maxiters=self._sigma_clip_max_iterations,
+                masked=True,
+            )
+            outlier_mask = clipped.mask
+        elif self._outlier_rejection_method == "fdr":
+            # standardized_residuals = residuals / mad(residuals)
+
+            # Compute two-tailed p-values (assuming ~t-distribution)
+            # Degrees of freedom approximation (n - p - 1)
+            df = len(residual) - num_params - 1
+            p_values = 2 * (1 - stats.t.cdf(np.abs(residual), df))
+
+            # Apply FDR correction (Benjamini-Hochberg)
+            reject, corrected_p = fdrcorrection(p_values, alpha=Q)
+
+            # Limit rejection to a maximum of 30% of the data points with the highest p-values
+            max_reject = int(0.3 * len(residual))
+            sorted_indices = np.argsort(corrected_p)
+            top_indices = sorted_indices[:max_reject]
+
+            outlier_mask = np.zeros_like(residual, dtype=bool)
+            outlier_mask[top_indices] = reject[top_indices]
+        else:
+            raise ValueError(
+                f"Unrecognized outlier rejection_method: {self._outlier_rejection_method}"
+            )
+
+        return outlier_mask
 
     def configure_noise(self, curve, noise, specified_noise_level):
         """
@@ -598,9 +698,9 @@ class WiggleCleaner(object):
         grey = "#999999"
 
         plt.errorbar(
-            self._wavelengths[(self._sigma_clip_mask == 1) & (self._gap_mask == 1)],
-            curve[(self._sigma_clip_mask == 1) & (self._gap_mask == 1)],
-            yerr=noise[(self._sigma_clip_mask == 1) & (self._gap_mask == 1)],
+            self._wavelengths[(self._outlier_mask == 1) & (self._gap_mask == 1)],
+            curve[(self._outlier_mask == 1) & (self._gap_mask == 1)],
+            yerr=noise[(self._outlier_mask == 1) & (self._gap_mask == 1)],
             label="Fitted points",
             ls="None",
             marker="o",
@@ -609,15 +709,15 @@ class WiggleCleaner(object):
             c=blue,
         )
         plt.errorbar(
-            self._wavelengths[(self._sigma_clip_mask == 0) | (self._gap_mask == 0)],
-            curve[(self._sigma_clip_mask == 0) | (self._gap_mask == 0)],
-            yerr=noise[(self._sigma_clip_mask == 0) | (self._gap_mask == 0)],
-            label="Sigma clipped points",
+            self._wavelengths[(self._outlier_mask == 0) | (self._gap_mask == 0)],
+            curve[(self._outlier_mask == 0) | (self._gap_mask == 0)],
+            yerr=noise[(self._outlier_mask == 0) | (self._gap_mask == 0)],
+            label="Rejected outliers",
             ls="None",
             marker="o",
             markersize=3,
             alpha=0.3,
-            c=grey,
+            c="grey",
         )
 
         # plt.plot(
@@ -761,10 +861,11 @@ class WiggleCleaner(object):
         proximity_threshold=200,
         plot=False,
         selection_criteria="bic",
+        extract_uncertainty=True,
+        outlier_rejection_method=None,
+        huber_delta=1.35,
         sigma_clip=5,
-        sigma_clip_iterations=3,
-        sigma_clip_fraction=0.3,
-        extract_uncertainty=False,
+        sigma_clip_max_iterations=3,
     ):
         """
         Fit the curve with selecting amplitude polynomial order based on BIC.
@@ -791,14 +892,16 @@ class WiggleCleaner(object):
         :type selection_criteria: str
         :param sigma_clip: Sigma clip threshold
         :type sigma_clip: float
-        :param sigma_clip_iterations: Number of sigma clip iterations
-        :type sigma_clip_iterations: int
-        :param sigma_clip_fraction: Fraction of pixels to keep after sigma clipping
-        :type sigma_clip_fraction: float
+        :param sigma_clip_max_iterations: Number of sigma clip iterations
+        :type sigma_clip_max_iterations: int
         :param combine_bic_weighted: If True, combine the BIC weighted by the number of parameters
         :type combine_bic_weighted: bool
         :param extract_uncertainty: If True, extract the uncertainties
         :type extract_uncertainty: bool
+        :param outlier_rejection_method: Outlier rejection method, "fdr" or "sigma_clip", set None to disable
+        :type outlier_rejection_method: str
+        :param huber_delta: Delta for Huber loss function
+        :type huber_delta: float
         :return: Fitted parameters
         :rtype: np.ndarray
         """
@@ -828,9 +931,10 @@ class WiggleCleaner(object):
                     specified_noise_level=specified_noise_level,
                     proximity_threshold=proximity_threshold,
                     plot=False,
+                    outlier_rejection_method=outlier_rejection_method,
+                    huber_delta=huber_delta,
                     sigma_clip=sigma_clip,
-                    sigma_clip_iterations=sigma_clip_iterations,
-                    sigma_clip_fraction=sigma_clip_fraction,
+                    sigma_clip_max_iterations=sigma_clip_max_iterations,
                     extract_covariance=extract_uncertainty,
                 )
 
@@ -865,9 +969,10 @@ class WiggleCleaner(object):
             specified_noise_level=specified_noise_level,
             proximity_threshold=proximity_threshold,
             plot=False,
+            outlier_rejection_method=outlier_rejection_method,
+            huber_delta=huber_delta,
             sigma_clip=sigma_clip,
-            sigma_clip_iterations=sigma_clip_iterations,
-            sigma_clip_fraction=sigma_clip_fraction,
+            sigma_clip_max_iterations=sigma_clip_max_iterations,
             extract_covariance=extract_uncertainty,
         )
 
@@ -909,7 +1014,7 @@ class WiggleCleaner(object):
         n_dof = np.sum(self._gap_mask)
         k = len(result_params)
 
-        chi2 = self.loss(result_params, curve, noise)
+        chi2 = self.cost_function(result_params, curve, noise)
 
         if selection_criteria == "bic":
             return chi2 + k * np.log(n_dof)
@@ -939,7 +1044,7 @@ class WiggleCleaner(object):
         chi2 = np.sum(((residual**2 / noise**2) * self._gap_mask)[indices])
         chi2_red = chi2 / n_data
 
-        residual = self.loss_vector(result_params, curve, noise)
+        residual = self.residual_vector(result_params, curve, noise)
         chi2_model_red = np.sum(residual[indices] ** 2) / n_data
 
         sigma = np.sqrt(chi2_red - chi2_model_red)
