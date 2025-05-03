@@ -71,6 +71,7 @@ class WiggleCleaner(object):
         self._amplitude_spline = None
         self._frequency_spline = None
 
+        self._include_scatter = False
         self._use_huber_loss = False
         self._huber_delta = 1.35
 
@@ -351,6 +352,10 @@ class WiggleCleaner(object):
         residual = (model - curve) / noise
         residual = residual * self._gap_mask * self._outlier_mask
 
+        if self._use_huber_loss:
+            huber_loss = huber(self._huber_delta, residual)
+            residual = np.sqrt(np.abs(2 * huber_loss)) * np.sign(residual)
+
         return residual
 
     def cost_function(self, params, curve, noise):
@@ -367,10 +372,7 @@ class WiggleCleaner(object):
         :rtype: float
         """
         residual = self.residual_vector(params, curve, noise)
-        if self._use_huber_loss:
-            cost = huber(self._huber_delta, residual)
-        else:
-            cost = np.sum(residual**2)
+        cost = np.sum(residual**2)
 
         return cost
 
@@ -427,10 +429,13 @@ class WiggleCleaner(object):
         specified_noise_level=0.005,
         proximity_threshold=200,
         do_interim_fit_phase_only=False,
+        include_scatter=True,
         extract_covariance=True,
         outlier_rejection_method=None,
         use_huber_loss=False,
         huber_delta=1.35,
+        fdr_alpha=0.01,
+        fdr_outlier_max_fraction=0.3,
         sigma_clip=5,
         sigma_clip_max_iterations=5,
         plot=False,
@@ -457,16 +462,22 @@ class WiggleCleaner(object):
         :type verbose: bool
         :param do_interim_fit_phase_only: If True, do an interim fit with phase only
         :type do_interim_fit_phase_only: bool
+        :param outlier_rejection_method: Outlier rejection method, "fdr" or "sigma_clip", set None to disable
+        :type outlier_rejection_method: str
+        :param use_huber_loss: If True, use Huber loss function
+        :type use_huber_loss: bool
+        :param huber_delta: Delta for Huber loss function
+        :type huber_delta: float
+        :param fdr_alpha: False discovery rate (FDR) correction threshold, smaller value will reject less outliers
+        :type fdr_alpha: float
+        :param fdr_outlier_max_fraction: Maximum fraction of outliers to reject using FDR
+        :type fdr_outlier_max_fraction: float
         :param sigma_clip: Sigma clip threshold
         :type sigma_clip: float
         :param sigma_clip_max_iterations: Number of sigma clip iterations
         :type sigma_clip_max_iterations: int
         :param extract_uncertainty: If True, extract the uncertainties
         :type extract_uncertainty: bool
-        :param outlier_rejection_method: Outlier rejection method, "fdr" or "sigma_clip", set None to disable
-        :type outlier_rejection_method: str
-        :param huber_delta: Delta for Huber loss function
-        :type huber_delta: float
         :return: Fitted parameters
         :rtype: np.ndarray
         """
@@ -526,11 +537,10 @@ class WiggleCleaner(object):
         elif self._symmetric_sharpening or self._asymmetric_sharpening:
             x0 = np.concatenate([x0, np.array([0])])
 
+        self._include_scatter = True
         self._outlier_rejection_method = outlier_rejection_method
-        self._huber_delta = huber_delta
-        self._sigma_clip = sigma_clip
-        self._sigma_clip_max_iterations = sigma_clip_max_iterations
         self._use_huber_loss = use_huber_loss
+        self._huber_delta = huber_delta
 
         is_turn_off_huber_loss = False
         if outlier_rejection_method == "fdr":
@@ -545,7 +555,12 @@ class WiggleCleaner(object):
             residual = self.residual_vector(result.x, curve, noise)
 
             clipped_pixels = self.reject_outliers(
-                residual, Q=0.01, num_params=len(result.x)
+                residual,
+                num_params=len(result.x),
+                fdr_alpha=fdr_alpha,
+                fdr_outlier_max_fraction=fdr_outlier_max_fraction,
+                sigma=sigma_clip,
+                sigma_clip_max_iterations=sigma_clip_max_iterations,
             )
 
             self._outlier_mask[clipped_pixels] = 0
@@ -599,27 +614,44 @@ class WiggleCleaner(object):
             cov_matrix = None
 
         if verbose:
-            print("Loss: ", self.cost_function(result_params, curve, noise))
+            print("Cost: ", self.cost_function(result_params, curve, noise))
 
         if plot:
             self.plot_model(
                 curve,
                 noise,
                 result_params,
-                n_amplitude,
-                n_frequency,
-                x0,
                 cov_matrix=cov_matrix,
             )
 
         return result_params, cov_matrix
 
-    def reject_outliers(self, residual, num_params=0, Q=0.01):
+    def reject_outliers(
+        self,
+        residual,
+        num_params=0,
+        fdr_alpha=0.01,
+        fdr_outlier_max_fraction=0.3,
+        sigma=5,
+        sigma_clip_max_iterations=5,
+    ):
         """
         Reject outliers using the selected method.
 
         :param residual: Residuals
         :type residual: np.ndarray
+        :param num_params: Number of parameters
+        :type num_params: int
+        :param fdr_q: FDR correction threshold
+        :type fdr_q: float
+        :param fdr_outlier_max_fraction: Maximum fraction of outliers to reject
+        :type fdr_outlier_max_fraction: float
+        :param huber_delta: Delta for Huber loss function
+        :type huber_delta: float
+        :param sigma: Sigma threshold for sigma clipping
+        :type sigma: float
+        :param sigma_clip_max_iterations: Maximum number of iterations for sigma clipping
+        :type sigma_clip_max_iterations: int
         :return: Indices of outliers
         :rtype: np.ndarray
         """
@@ -628,8 +660,8 @@ class WiggleCleaner(object):
         if self._outlier_rejection_method == "sigma_clip":
             clipped = sigma_clip(
                 residual,
-                sigma=self._sigma_clip,
-                maxiters=self._sigma_clip_max_iterations,
+                sigma=sigma,
+                maxiters=sigma_clip_max_iterations,
                 masked=True,
             )
             outlier_mask = clipped.mask
@@ -642,10 +674,10 @@ class WiggleCleaner(object):
             p_values = 2 * (1 - stats.t.cdf(np.abs(residual), df))
 
             # Apply FDR correction (Benjamini-Hochberg)
-            reject, corrected_p = fdrcorrection(p_values, alpha=Q)
+            reject, corrected_p = fdrcorrection(p_values, alpha=fdr_alpha)
 
             # Limit rejection to a maximum of 30% of the data points with the highest p-values
-            max_reject = int(0.3 * len(residual))
+            max_reject = int(fdr_outlier_max_fraction * len(residual))
             sorted_indices = np.argsort(corrected_p)
             top_indices = sorted_indices[:max_reject]
 
@@ -684,12 +716,25 @@ class WiggleCleaner(object):
         curve,
         noise,
         result_params,
-        n_amplitude,
-        n_frequency,
-        x0=None,
         cov_matrix=None,
         num_samples_uncertainty_region=1000,
     ):
+        """
+        Plot the model.
+
+        :param curve: Curve
+        :type curve: np.ndarray
+        :param noise: Noise
+        :type noise: np.ndarray
+        :param result_params: Fitted parameters
+        :type result_params: np.ndarray
+        :param cov_matrix: Covariance matrix
+        :type cov_matrix: np.ndarray
+        :param num_samples_uncertainty_region: Number of samples for uncertainty region
+        :type num_samples_uncertainty_region: int
+        :return: None
+        :rtype: None
+        """
         red = "#e41a1c"
         blue = "#377eb8"
         green = "#4daf4a"
@@ -716,22 +761,12 @@ class WiggleCleaner(object):
             ls="None",
             marker="o",
             markersize=3,
-            alpha=0.3,
-            c="grey",
+            alpha=0.4,
+            c=grey,
         )
 
-        # plt.plot(
-        #     self._wavelengths,
-        #     curve,
-        #     ls="None",
-        #     marker="o",
-        #     markersize=2,
-        #     c=blue,
-        #     alpha=0.6,
-        # )
-        plt.plot(
-            self._wavelengths, self.model(result_params), label="Model", lw=1, c=orange
-        )
+        model = self.model(result_params)
+        plt.plot(self._wavelengths, model, label="Model", lw=1, c=orange)
 
         if cov_matrix is not None:
             models = []
@@ -744,13 +779,13 @@ class WiggleCleaner(object):
             models = np.array(models)
 
             model_up, model_down = np.percentile(models, [16, 84], axis=0)
-
+            model_uncertainty = (model_up - model_down) / 2
             plt.fill_between(
                 self._wavelengths,
-                model_down,
-                model_up,
+                model - model_uncertainty,
+                model + model_uncertainty,
                 color=orange,
-                alpha=0.2,
+                alpha=0.4,
             )
 
         for g in self._gaps:
@@ -987,8 +1022,6 @@ class WiggleCleaner(object):
                 curve,
                 noise,
                 best_params,
-                best_n_amplitude,
-                best_n_frequency,
                 cov_matrix=cov_matrix,
             )
 
