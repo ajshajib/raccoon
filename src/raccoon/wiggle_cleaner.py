@@ -355,7 +355,7 @@ class WiggleCleaner(object):
             total_noise = noise
 
         residual = (model - curve) / total_noise
-        residual = residual * self._gap_mask * self._outlier_mask
+        residual = residual * self._gap_mask  # * self._outlier_mask
 
         if self._use_huber_loss:
             huber_loss = huber(self._huber_delta, residual)
@@ -441,7 +441,7 @@ class WiggleCleaner(object):
         n_amplitude=None,
         n_frequency=None,
         specified_noise_level=0.005,
-        proximity_threshold=200,
+        init_peak_detection_proximity_threshold=200,
         do_interim_fit_phase_only=False,
         include_scatter=True,
         extract_covariance=True,
@@ -450,7 +450,7 @@ class WiggleCleaner(object):
         huber_delta=1.35,
         fdr_alpha=0.01,
         fdr_outlier_max_fraction=0.3,
-        sigma_clip=5,
+        sigma_clip_sigma=5,
         sigma_clip_max_iterations=5,
         symmetric_sharpening=False,
         asymmetric_sharpening=False,
@@ -470,8 +470,8 @@ class WiggleCleaner(object):
         :type n_frequency: int
         :param specified_noise_level: User-defined noise level to be used instead of the actual noise. Set to 0 to disable.
         :type specified_noise_level: float
-        :param proximity_threshold: Proximity lower limit in Angstrom for initial identifaction of peaks and troughs
-        :type proximity_threshold: float
+        :param init_peak_detection_proximity_threshold: Proximity lower limit in Angstrom for initial identifaction of peaks and troughs
+        :type init_peak_detection_proximity_threshold: float
         :param plot: If True, plot the results
         :type plot: bool
         :param verbose: If True, print the results
@@ -488,8 +488,8 @@ class WiggleCleaner(object):
         :type fdr_alpha: float
         :param fdr_outlier_max_fraction: Maximum fraction of outliers to reject using FDR
         :type fdr_outlier_max_fraction: float
-        :param sigma_clip: Sigma clip threshold
-        :type sigma_clip: float
+        :param sigma_clip_sigma: Sigma threshold for sigma clipping
+        :type sigma_clip_sigma: float
         :param sigma_clip_max_iterations: Number of sigma clip iterations
         :type sigma_clip_max_iterations: int
         :param extract_uncertainty: If True, extract the uncertainties
@@ -497,6 +497,10 @@ class WiggleCleaner(object):
         :return: Fitted parameters
         :rtype: np.ndarray
         """
+        assert (
+            fdr_outlier_max_fraction < 1
+        ), "fdr_outlier_max_fraction must be less than 1"
+
         self._include_scatter = True
         self._outlier_rejection_method = outlier_rejection_method
         self._use_huber_loss = use_huber_loss
@@ -518,7 +522,7 @@ class WiggleCleaner(object):
             self.scaled_w,
             n_amplitude=n_amplitude,
             n_frequency=n_frequency,
-            proximity_threshold=proximity_threshold
+            init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold
             / np.mean(np.diff(self._wavelengths)),
             plot=False,
         )
@@ -564,16 +568,20 @@ class WiggleCleaner(object):
         elif self._symmetric_sharpening or self._asymmetric_sharpening:
             x0 = np.concatenate([x0, np.array([0])])
 
-        is_turn_off_huber_loss = False
-        if outlier_rejection_method == "fdr":
-            if not self._use_huber_loss:
-                is_turn_off_huber_loss = True
-
-            self._use_huber_loss = True
-
-        result = least_squares(self.get_residual_func(curve, noise), x0)
-
         if self._outlier_rejection_method is not None:
+            is_turn_off_huber_loss = False
+            if outlier_rejection_method == "fdr":
+                if not self._use_huber_loss:
+                    is_turn_off_huber_loss = True
+
+                self._use_huber_loss = True
+
+            # initial "robust" regression (using Huber loss)
+            result = least_squares(
+                self.get_residual_func(curve, noise),
+                x0,
+            )
+
             residual = self.residual_vector(result.x, curve, noise)
 
             clipped_pixels = self.reject_outliers(
@@ -581,7 +589,7 @@ class WiggleCleaner(object):
                 num_params=len(result.x),
                 fdr_alpha=fdr_alpha,
                 fdr_outlier_max_fraction=fdr_outlier_max_fraction,
-                sigma=sigma_clip,
+                sigma_clip_sigma=sigma_clip_sigma,
                 sigma_clip_max_iterations=sigma_clip_max_iterations,
             )
 
@@ -590,10 +598,10 @@ class WiggleCleaner(object):
             if is_turn_off_huber_loss:
                 self._use_huber_loss = False
 
-            result = least_squares(
-                self.get_residual_func(curve, noise),
-                result.x,
-            )
+        result = least_squares(
+            self.get_residual_func(curve, noise),
+            result.x,
+        )
 
         # for i in range(sigma_clip_iterations):
         #     residual = np.abs(self.residual_vector(result.x, curve, noise))
@@ -654,7 +662,7 @@ class WiggleCleaner(object):
         num_params=0,
         fdr_alpha=0.01,
         fdr_outlier_max_fraction=0.3,
-        sigma=5,
+        sigma_clip_sigma=5,
         sigma_clip_max_iterations=5,
     ):
         """
@@ -682,7 +690,7 @@ class WiggleCleaner(object):
         if self._outlier_rejection_method == "sigma_clip":
             clipped = sigma_clip(
                 residual,
-                sigma=sigma,
+                sigma=sigma_clip_sigma,
                 maxiters=sigma_clip_max_iterations,
                 masked=True,
             )
@@ -702,7 +710,6 @@ class WiggleCleaner(object):
             max_reject = int(fdr_outlier_max_fraction * len(residual))
             sorted_indices = np.argsort(corrected_p)
             top_indices = sorted_indices[:max_reject]
-
             outlier_mask = np.zeros_like(residual, dtype=bool)
             outlier_mask[top_indices] = reject[top_indices]
         else:
@@ -915,12 +922,16 @@ class WiggleCleaner(object):
         min_n_amplitude=None,
         min_n_frequency=None,
         specified_noise_level=0.005,
-        proximity_threshold=200,
+        init_peak_detection_proximity_threshold=200,
         plot=False,
         selection_criteria="bic",
         extract_uncertainty=True,
+        include_scatter=True,
         outlier_rejection_method=None,
+        use_huber_loss=False,
         huber_delta=1.35,
+        fdr_alpha=0.01,
+        fdr_outlier_max_fraction=0.3,
         sigma_clip=5,
         sigma_clip_max_iterations=3,
     ):
@@ -941,8 +952,8 @@ class WiggleCleaner(object):
         :type min_n_frequency: int
         :param specified_noise_level: Artificial noise level
         :type specified_noise_level: float
-        :param proximity_threshold: Proximity lower limit in Angstrom for initial identifaction of peaks and troughs
-        :type proximity_threshold: float
+        :param init_peak_detection_proximity_threshold: Proximity lower limit in Angstrom for initial identifaction of peaks and troughs
+        :type init_peak_detection_proximity_threshold: float
         :param plot: If True, plot the results
         :type plot: bool
         :param selection_criteria: Selection criteria, "bic" or "chi2"
@@ -986,13 +997,17 @@ class WiggleCleaner(object):
                     n_amplitude=i,
                     n_frequency=k,
                     specified_noise_level=specified_noise_level,
-                    proximity_threshold=proximity_threshold,
+                    init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
                     plot=False,
-                    outlier_rejection_method=outlier_rejection_method,
-                    huber_delta=huber_delta,
-                    sigma_clip=sigma_clip,
-                    sigma_clip_max_iterations=sigma_clip_max_iterations,
                     extract_covariance=extract_uncertainty,
+                    include_scatter=include_scatter,
+                    outlier_rejection_method=outlier_rejection_method,
+                    use_huber_loss=use_huber_loss,
+                    huber_delta=huber_delta,
+                    fdr_alpha=fdr_alpha,
+                    fdr_outlier_max_fraction=fdr_outlier_max_fraction,
+                    sigma_clip_sigma=sigma_clip,
+                    sigma_clip_max_iterations=sigma_clip_max_iterations,
                 )
 
                 fit_metric = self.get_model_selection_metric(
@@ -1024,13 +1039,17 @@ class WiggleCleaner(object):
             n_amplitude=best_n_amplitude,
             n_frequency=best_n_frequency,
             specified_noise_level=specified_noise_level,
-            proximity_threshold=proximity_threshold,
+            init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
             plot=False,
-            outlier_rejection_method=outlier_rejection_method,
-            huber_delta=huber_delta,
-            sigma_clip=sigma_clip,
-            sigma_clip_max_iterations=sigma_clip_max_iterations,
             extract_covariance=extract_uncertainty,
+            include_scatter=include_scatter,
+            outlier_rejection_method=outlier_rejection_method,
+            use_huber_loss=use_huber_loss,
+            huber_delta=huber_delta,
+            fdr_alpha=fdr_alpha,
+            fdr_outlier_max_fraction=fdr_outlier_max_fraction,
+            sigma_clip_sigma=sigma_clip,
+            sigma_clip_max_iterations=sigma_clip_max_iterations,
         )
 
         print("Best n_amplitude: ", best_n_amplitude)
@@ -1066,7 +1085,7 @@ class WiggleCleaner(object):
         :return: Fit metric
         :rtype: float
         """
-        n_dof = np.sum(self._gap_mask)
+        n_dof = np.sum(np.logical_or(self._gap_mask, self._outlier_mask))
         k = len(result_params)
 
         chi2 = self.cost_function(result_params, curve, noise)
@@ -1091,12 +1110,24 @@ class WiggleCleaner(object):
         :return: True if wiggle is detected
         :rtype: bool
         """
+        model = self.model(result_params)
+
+        # residual for flat spectrum
         residual = curve - np.ones_like(curve)
         n_data = len(curve)
 
         p = np.percentile(np.abs(residual), 97.5)
         indices = np.abs(residual) < p
-        chi2 = np.sum(((residual**2 / noise**2) * self._gap_mask)[indices])
+        if self._include_scatter:
+            n_amplitude, n_frequency = self.configure_polynomial_ns()
+            scatter_f = np.exp(result_params[n_amplitude + n_frequency + 4 + 1])
+            total_noise = np.sqrt(noise**2 + scatter_f**2 * model**2)
+
+        chi2 = np.sum(
+            ((residual**2 / total_noise**2) * self._gap_mask * self._outlier_mask)[
+                indices
+            ]
+        )
         chi2_red = chi2 / n_data
 
         residual = self.residual_vector(result_params, curve, noise)
@@ -1108,18 +1139,14 @@ class WiggleCleaner(object):
 
     def clean_cube(
         self,
-        sigma_threshold=5,
+        wiggle_detection_sigma_threshold=3,
         n_amplitude=10,
         n_frequency=1,
         min_n_amplitude=None,
         min_n_frequency=None,
         specified_noise_level=0.005,
-        proximity_threshold=200,
+        init_peak_detection_proximity_threshold=200,
         aperture_size=4,
-        min_x=None,
-        max_x=None,
-        min_y=None,
-        max_y=None,
         conserve_flux=True,
         verbose=True,
         plot=True,
@@ -1139,8 +1166,8 @@ class WiggleCleaner(object):
         :type min_n_frequency: int
         :param specified_noise_level: Artificial noise level
         :type specified_noise_level: float
-        :param proximity_threshold: Proximity lower limit in Angstrom for initial identifaction of peaks and troughs
-        :type proximity_threshold: float
+        :param init_peak_detection_proximity_threshold: Proximity lower limit in Angstrom for initial identifaction of peaks and troughs
+        :type init_peak_detection_proximity_threshold: float
         :param aperture_size: Aperture size. Spaxels at the edges with width less than this value will not be cleaned.
         :type aperture_size: int
         :param min_x: Minimum spaxel x to set lower limit for the cleaning process
@@ -1192,7 +1219,7 @@ class WiggleCleaner(object):
                         n_amplitude=5,
                         n_frequency=3,
                         specified_noise_level=specified_noise_level,
-                        proximity_threshold=proximity_threshold,
+                        init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
                         plot=False,
                     )
 
@@ -1200,7 +1227,7 @@ class WiggleCleaner(object):
                         curve,
                         noise,
                         result_params,
-                        sigma_threshold=sigma_threshold,
+                        sigma_threshold=wiggle_detection_sigma_threshold,
                     ):
                         print(f"Wiggle detected. Cleaning spaxel: {i}, {j}.")
 
@@ -1211,7 +1238,7 @@ class WiggleCleaner(object):
                                 n_amplitude=n_amplitude,
                                 n_frequency=n_frequency,
                                 specified_noise_level=specified_noise_level,
-                                proximity_threshold=proximity_threshold,
+                                init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
                                 plot=plot,
                             )
                         else:
@@ -1223,7 +1250,7 @@ class WiggleCleaner(object):
                                 min_n_amplitude=min_n_amplitude,
                                 min_n_frequency=min_n_frequency,
                                 specified_noise_level=specified_noise_level,
-                                proximity_threshold=proximity_threshold,
+                                init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
                                 plot=plot,
                             )
 
