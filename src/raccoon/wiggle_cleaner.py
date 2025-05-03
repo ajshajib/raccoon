@@ -29,8 +29,6 @@ class WiggleCleaner(object):
         datacube,
         noise_cube,
         gaps=None,
-        symmetric_sharpening=False,
-        asymmetric_sharpening=False,
     ):
         """
         Initialize the WiggleCleaner object.
@@ -65,8 +63,8 @@ class WiggleCleaner(object):
         self._n_amplitude = -1
         self._n_frequency = -1
 
-        self._symmetric_sharpening = symmetric_sharpening
-        self._asymmetric_sharpening = asymmetric_sharpening
+        self._symmetric_sharpening = False
+        self._asymmetric_sharpening = False
 
         self._amplitude_spline = None
         self._frequency_spline = None
@@ -349,12 +347,28 @@ class WiggleCleaner(object):
         """
         model = self.model(params)
 
-        residual = (model - curve) / noise
+        if self._include_scatter:
+            n_amplitude, n_frequency = self.configure_polynomial_ns()
+            scatter_f = np.exp(params[n_amplitude + n_frequency + 4 + 1])
+            total_noise = np.sqrt(noise**2 + scatter_f**2 * model**2)
+        else:
+            total_noise = noise
+
+        residual = (model - curve) / total_noise
         residual = residual * self._gap_mask * self._outlier_mask
 
         if self._use_huber_loss:
             huber_loss = huber(self._huber_delta, residual)
             residual = np.sqrt(np.abs(2 * huber_loss)) * np.sign(residual)
+
+        if self._include_scatter:
+            residual = np.sqrt(
+                (
+                    residual**2
+                    + np.log(2 * np.pi * total_noise**2)
+                    - np.min(np.log(2 * np.pi * noise**2))
+                )
+            ) * np.sign(residual)
 
         return residual
 
@@ -438,6 +452,8 @@ class WiggleCleaner(object):
         fdr_outlier_max_fraction=0.3,
         sigma_clip=5,
         sigma_clip_max_iterations=5,
+        symmetric_sharpening=False,
+        asymmetric_sharpening=False,
         plot=False,
         verbose=False,
     ):
@@ -481,6 +497,14 @@ class WiggleCleaner(object):
         :return: Fitted parameters
         :rtype: np.ndarray
         """
+        self._include_scatter = True
+        self._outlier_rejection_method = outlier_rejection_method
+        self._use_huber_loss = use_huber_loss
+        self._huber_delta = huber_delta
+        self._include_scatter = include_scatter
+        self._symmetric_sharpening = symmetric_sharpening
+        self._asymmetric_sharpening = asymmetric_sharpening
+
         self._outlier_mask = np.ones_like(self._wavelengths)
 
         n_amplitude, n_frequency = self.configure_polynomial_ns(
@@ -531,16 +555,14 @@ class WiggleCleaner(object):
                 n_frequency=n_frequency,
             )
 
+        if self._include_scatter:
+            x0 = np.concatenate([x0, np.array([-2])])
+
         # Add parameters for asymmetric and symmetric sharpening
         if self._symmetric_sharpening and self._asymmetric_sharpening:
             x0 = np.concatenate([x0, np.array([0, 0])])
         elif self._symmetric_sharpening or self._asymmetric_sharpening:
             x0 = np.concatenate([x0, np.array([0])])
-
-        self._include_scatter = True
-        self._outlier_rejection_method = outlier_rejection_method
-        self._use_huber_loss = use_huber_loss
-        self._huber_delta = huber_delta
 
         is_turn_off_huber_loss = False
         if outlier_rejection_method == "fdr":
