@@ -42,14 +42,16 @@ def polyfit(x, y, deg, w=None):
 class Util(object):
 
     @classmethod
-    def find_extrema(cls, curve, proximity_threshold=50, is_peak=True):
+    def find_extrema(
+        cls, curve, init_peak_detection_proximity_threshold=50, is_peak=True
+    ):
         """
         Find peaks or troughs of a curve
 
         :param curve: 1D numpy array
         :type curve: np.ndarray
-        :param proximity_threshold: Minimum distance between two extrema in pixels
-        :type proximity_threshold: int
+        :param init_peak_detection_proximity_threshold: Minimum distance between two extrema in pixels
+        :type init_peak_detection_proximity_threshold: int
         :param is_peak: If True, find peaks, otherwise find troughs
         :type is_peak: bool
         :return: Indices of the extrema
@@ -60,8 +62,10 @@ class Util(object):
         val = -2 if is_peak else 2
         extrema = np.where(np.diff(np.sign(np.diff(smooth_curve))) == val)[0]
 
-        while np.any(np.diff(extrema) < proximity_threshold):
-            close_index = np.where(np.diff(extrema) < proximity_threshold)[0][0]
+        while np.any(np.diff(extrema) < init_peak_detection_proximity_threshold):
+            close_index = np.where(
+                np.diff(extrema) < init_peak_detection_proximity_threshold
+            )[0][0]
             extrema = np.delete(extrema, close_index + 1)
 
         return extrema
@@ -91,19 +95,25 @@ class Util(object):
         return savgol_filter(curve, 31, 3)
 
     @classmethod
-    def find_init_peaks_troughs_mids(cls, curve, proximity_threshold=50):
+    def find_init_peaks_troughs_mids(
+        cls, curve, init_peak_detection_proximity_threshold=50
+    ):
         """
         Find initial peaks, troughs, and midpoints of a curve
 
         :param curve: 1D numpy array
         :type curve: np.ndarray
-        :param proximity_threshold: Minimum distance between two extrema in pixels
-        :type proximity_threshold: int
+        :param init_peak_detection_proximity_threshold: Minimum distance between two extrema in pixels
+        :type init_peak_detection_proximity_threshold: int
         :return: Peaks, troughs, and midpoints
         :rtype: Tuple[np.ndarray, np.ndarray, np.ndarray]
         """
-        peaks = cls.find_extrema(curve, proximity_threshold, is_peak=True)
-        troughs = cls.find_extrema(curve, proximity_threshold, is_peak=False)
+        peaks = cls.find_extrema(
+            curve, init_peak_detection_proximity_threshold, is_peak=True
+        )
+        troughs = cls.find_extrema(
+            curve, init_peak_detection_proximity_threshold, is_peak=False
+        )
         all_extrema = []
 
         if peaks[0] < troughs[0]:
@@ -165,7 +175,7 @@ class Util(object):
         n_amplitude=2,
         n_offset=7,
         n_frequency=1,
-        proximity_threshold=50,
+        init_peak_detection_proximity_threshold=50,
         plot=False,
     ):
         """
@@ -185,7 +195,8 @@ class Util(object):
         :rtype: Tuple[np.ndarray, np.ndarray, np.ndarray, float]
         """
         peaks, troughs, midpoints, extrema = cls.find_init_peaks_troughs_mids(
-            curve, proximity_threshold=proximity_threshold
+            curve,
+            init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
         )
 
         lighter_smooth_curve = cls.lighter_smooth_curve(curve)
@@ -258,7 +269,7 @@ class Util(object):
         scaled_wavelengths,
         n_amplitude=2,
         n_frequency=1,
-        proximity_threshold=50,
+        init_peak_detection_proximity_threshold=50,
         plot=False,
     ):
         """
@@ -268,12 +279,13 @@ class Util(object):
         :param scaled_wavelengths: Corresponding wavelength values
         :param n_amplitude: Number of knots for amplitude spline
         :param n_frequency: Number of knots for frequency spline
-        :param proximity_threshold: Minimum distance between extrema (in indices)
+        :param init_peak_detection_proximity_threshold: Minimum distance between extrema (in indices)
         :param plot: Whether to show diagnostic plots
         :return: Tuple containing (amplitude_spline, frequency_spline, phase_offset)
         """
         peaks, troughs, midpoints, extrema = cls.find_init_peaks_troughs_mids(
-            curve, proximity_threshold=proximity_threshold
+            curve,
+            init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
         )
 
         lighter_smooth_curve = cls.lighter_smooth_curve(curve)
