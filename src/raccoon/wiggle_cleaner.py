@@ -332,16 +332,59 @@ class WiggleCleaner(object):
 
         return n_amplitude, n_frequency
 
-    def residual_vector(self, params, curve, noise):
+    def residual_vector_full_fit(self, params, x, y, aperture_size=4, shell_size=0):
+        """ """
+        (
+            spectra,
+            noise,
+            aperture_spectra,
+            aperture_noise,
+            shell_spectra,
+            shell_noise,
+        ) = self.get_spectra_set(x, y, aperture_size, shell_size)
+
+        wavelengths = self.scale_wavelengths_negative1_to_1(self._wavelengths)
+
+        # fit c_1 * aperture_spectra + c_3 * wavelengths**a + (c_4 * wavelengths**2 + c_5 * wavelengths + c_6)
+        # given non-linear parameter a, treat all c_1 parameters as linear parameters and derive them using linear inversion
+
+        wiggle_model = self.wiggle_model(params)
+
+        def model(a):
+            # Construct the design matrix for the current 'a'
+            A = np.column_stack(
+                [
+                    aperture_spectra * wiggle_model,
+                    self.scale_wavelengths_to_0_1(self._wavelengths) ** a,
+                    wavelengths**2,
+                    wavelengths,
+                    np.ones_like(wavelengths),
+                ]
+            )
+
+            if shell_size > 0:
+                # Add the shell spectra to the design matrix
+                A = np.column_stack([A, shell_spectra * wiggle_model])
+
+            # Solve the linear least squares problem
+            coefficients, _, _, _ = lstsq(A, spectra)
+
+            return A @ coefficients, coefficients
+
+        def residual_vector(a):
+            model_spectra, _ = model(a)
+            return (model_spectra - spectra) / noise
+
+    def residual_vector(self, params, wiggle_data, wiggle_noise):
         """ "
         Get the residual vector.
 
         :param params: Parameters
         :type params: np.ndarray
-        :param curve: Curve
-        :type curve: np.ndarray
-        :param noise: Noise
-        :type noise: np.ndarray
+        :param wiggle_data: wiggle_data
+        :type wiggle_data: np.ndarray
+        :param wiggle_noise: wiggle_noise
+        :type wiggle_noise: np.ndarray
         :return: Residual vector
         :rtype: np.ndarray
         """
@@ -350,11 +393,11 @@ class WiggleCleaner(object):
         if self._include_scatter:
             n_amplitude, n_frequency = self.configure_polynomial_ns()
             scatter_f = np.exp(params[n_amplitude + n_frequency + 4 + 1])
-            total_noise = np.sqrt(noise**2 + scatter_f**2 * model**2)
+            total_noise = np.sqrt(wiggle_noise**2 + scatter_f**2 * model**2)
         else:
-            total_noise = noise
+            total_noise = wiggle_noise
 
-        residual = (model - curve) / total_noise
+        residual = (model - wiggle_data) / total_noise
         residual = residual * self._gap_mask * self._outlier_mask
 
         if self._use_huber_loss:
@@ -366,48 +409,48 @@ class WiggleCleaner(object):
                 (
                     residual**2
                     + np.log(2 * np.pi * total_noise**2)
-                    - np.min(np.log(2 * np.pi * noise**2))
+                    - np.min(np.log(2 * np.pi * wiggle_noise**2))
                 )
             ) * np.sign(residual)
 
         return residual
 
-    def cost_function(self, params, curve, noise):
+    def cost_function(self, params, wiggle_data, wiggle_noise):
         """
         Get the cost.
 
         :param params: Parameters
         :type params: np.ndarray
-        :param curve: Curve
-        :type curve: np.ndarray
-        :param noise: Noise
-        :type noise: np.ndarray
+        :param wiggle_data: wiggle data
+        :type wiggle_data: np.ndarray
+        :param wiggle_noise: wiggle_noise
+        :type wiggle_noise: np.ndarray
         :return: cost
         :rtype: float
         """
-        residual = self.residual_vector(params, curve, noise)
+        residual = self.residual_vector(params, wiggle_data, wiggle_noise)
         cost = np.sum(residual**2)
 
         return cost
 
-    def get_residual_func(self, curve, noise):
+    def get_residual_func(self, wiggle_data, wiggle_noise):
         """
         Get the residual function.
 
-        :param curve: Curve
-        :type curve: np.ndarray
-        :param noise: Noise
-        :type noise: np.ndarray
+        :param wiggle_data: wiggle data
+        :type wiggle_data: np.ndarray
+        :param wiggle_noise: wiggle noise
+        :type wiggle_noise: np.ndarray
         :return: Residual function
         :rtype: Callable
         """
 
         def residual_func(params):
-            return self.residual_vector(params, curve, noise)
+            return self.residual_vector(params, wiggle_data, wiggle_noise)
 
         return residual_func
 
-    def get_residual_func_phase_only(self, init_params, curve, noise):
+    def get_residual_func_phase_only(self, init_params, wiggle_data, wiggle_noise):
         """
         Get the residual function with phase only.
 
@@ -415,10 +458,10 @@ class WiggleCleaner(object):
         :type params: np.ndarray
         :param init_params: Initial parameters
         :type init_params: np.ndarray
-        :param curve: Curve
-        :type curve: np.ndarray
-        :param noise: Noise
-        :type noise: np.ndarray
+        :param wiggle_data: wiggle_data
+        :type wiggle_data: np.ndarray
+        :param wiggle_noise: wiggle noise
+        :type wiggle_noise: np.ndarray
         :return: Residual function
         :rtype: Callable
         """
@@ -430,17 +473,17 @@ class WiggleCleaner(object):
                 params[:-1],
                 params[-1],
             )
-            return self.residual_vector(new_params, curve, noise)
+            return self.residual_vector(new_params, wiggle_data, wiggle_noise)
 
         return residual_func
 
     def fit_wiggle_data(
         self,
-        curve,
-        noise=None,
+        wiggle_data,
+        wiggle_noise=None,
         n_amplitude=None,
         n_frequency=None,
-        specified_noise_level=0.005,
+        specified_noise_level=0,
         init_peak_detection_proximity_threshold=200,
         do_interim_fit_phase_only=False,
         include_scatter=True,
@@ -458,12 +501,12 @@ class WiggleCleaner(object):
         verbose=False,
     ):
         """
-        Fit the curve.
+        Fit the wiggle data.
 
-        :param curve: Curve
-        :type curve: np.ndarray
-        :param noise: Noise
-        :type noise: np.ndarray
+        :param wiggle_data: Wiggle data
+        :type wiggle_data: np.ndarray
+        :param wiggle_noise: wiggle noise
+        :type wiggle_noise: np.ndarray
         :param n_amplitude: Number of amplitude parameters
         :type n_amplitude: int
         :param n_frequency: Number of frequency parameters
@@ -514,10 +557,12 @@ class WiggleCleaner(object):
             n_amplitude, n_frequency
         )
 
-        noise = self.configure_noise(curve, noise, specified_noise_level)
+        wiggle_noise = self.configure_noise(
+            wiggle_data, wiggle_noise, specified_noise_level
+        )
 
         amplitude_spline, frequency_spline, init_phi_0 = Util.get_init_params_spline(
-            curve,
+            wiggle_data,
             self.scaled_w,
             n_amplitude=n_amplitude,
             n_frequency=n_frequency,
@@ -531,8 +576,8 @@ class WiggleCleaner(object):
         self._frequency_spline = deepcopy(frequency_spline)
         init_frequency_params = deepcopy(frequency_spline.c)
 
-        curve = np.array(curve)
-        noise = np.array(noise)
+        wiggle_data = np.array(wiggle_data)
+        wiggle_noise = np.array(wiggle_noise)
 
         x0 = self.set_params(
             init_amplitude_params,
@@ -544,7 +589,7 @@ class WiggleCleaner(object):
 
         if do_interim_fit_phase_only:
             result = least_squares(
-                self.get_residual_func_phase_only(x0, curve, noise),
+                self.get_residual_func_phase_only(x0, wiggle_data, wiggle_noise),
                 np.concatenate([init_frequency_params, x0]),
             )
             interim_frquency_params = result.x[:-1]
@@ -577,11 +622,11 @@ class WiggleCleaner(object):
 
             # initial "robust" regression (using Huber loss)
             result = least_squares(
-                self.get_residual_func(curve, noise),
+                self.get_residual_func(wiggle_data, wiggle_noise),
                 x0,
             )
 
-            residual = self.residual_vector(result.x, curve, noise)
+            residual = self.residual_vector(result.x, wiggle_data, wiggle_noise)
 
             clipped_pixels = self.reject_outliers(
                 residual,
@@ -598,12 +643,12 @@ class WiggleCleaner(object):
                 self._use_huber_loss = False
 
         result = least_squares(
-            self.get_residual_func(curve, noise),
+            self.get_residual_func(wiggle_data, wiggle_noise),
             result.x,
         )
 
         # for i in range(sigma_clip_iterations):
-        #     residual = np.abs(self.residual_vector(result.x, curve, noise))
+        #     residual = np.abs(self.residual_vector(result.x, wiggle_data, noise))
         #     # Keep the top sigma_clip_fraction fraction of the residuals
         #     residuals = residual[residual > sigma_clip]
         #     if len(residuals) == 0:
@@ -613,7 +658,7 @@ class WiggleCleaner(object):
         #     self._outlier_mask[clipped_pixels] = 0
 
         #     result = least_squares(
-        #         self.get_residual_func(curve, noise),
+        #         self.get_residual_func(wiggle_data, noise),
         #         result.x,
         #     )
 
@@ -643,12 +688,14 @@ class WiggleCleaner(object):
             cov_matrix = None
 
         if verbose:
-            print("Cost: ", self.cost_function(result_params, curve, noise))
+            print(
+                "Cost: ", self.cost_function(result_params, wiggle_data, wiggle_noise)
+            )
 
         if plot:
             self.plot_model(
-                curve,
-                noise,
+                wiggle_data,
+                wiggle_noise,
                 result_params,
                 cov_matrix=cov_matrix,
             )
@@ -718,31 +765,31 @@ class WiggleCleaner(object):
 
         return outlier_mask
 
-    def configure_noise(self, curve, noise, specified_noise_level):
+    def configure_noise(self, wiggle_data, wiggle_noise, specified_noise_level):
         """
         Configure the noise.
 
-        :param curve: Curve
-        :type curve: np.ndarray
-        :param noise: Noise
-        :type noise: np.ndarray
+        :param wiggle_data: wiggle_data
+        :type wiggle_data: np.ndarray
+        :param wiggle_noise: wiggle noise
+        :type wiggle_noise: np.ndarray
         :param specified_noise_level: User-defined noise level to be used instead of the actual noise. Set to 0 to disable.
         :type specified_noise_level: float
-        :return: Noise
+        :return: modified wiggle noise
         :rtype: np.ndarray
         """
-        if noise is None and specified_noise_level == 0:
+        if wiggle_noise is None and specified_noise_level == 0:
             raise ValueError(
                 "Noise level not set! Either provide the noise or set the specified_noise_level."
             )
         if specified_noise_level > 0:
-            noise = np.ones_like(curve) * specified_noise_level
-        return noise
+            wiggle_noise = np.ones_like(wiggle_data) * specified_noise_level
+        return wiggle_noise
 
     def plot_model(
         self,
-        curve,
-        noise,
+        wiggle_data,
+        wiggle_noise,
         result_params,
         cov_matrix=None,
         num_samples_uncertainty_region=1000,
@@ -750,10 +797,10 @@ class WiggleCleaner(object):
         """
         Plot the model.
 
-        :param curve: Curve
-        :type curve: np.ndarray
-        :param noise: Noise
-        :type noise: np.ndarray
+        :param wiggle_data: wiggle_data
+        :type wiggle_data: np.ndarray
+        :param wiggle_noise: wiggle noise
+        :type wiggle_noise: np.ndarray
         :param result_params: Fitted parameters
         :type result_params: np.ndarray
         :param cov_matrix: Covariance matrix
@@ -772,8 +819,8 @@ class WiggleCleaner(object):
 
         plt.errorbar(
             self._wavelengths[(self._outlier_mask == 1) & (self._gap_mask == 1)],
-            curve[(self._outlier_mask == 1) & (self._gap_mask == 1)],
-            yerr=noise[(self._outlier_mask == 1) & (self._gap_mask == 1)],
+            wiggle_data[(self._outlier_mask == 1) & (self._gap_mask == 1)],
+            yerr=wiggle_noise[(self._outlier_mask == 1) & (self._gap_mask == 1)],
             label="Fitted points",
             ls="None",
             marker="o",
@@ -783,8 +830,8 @@ class WiggleCleaner(object):
         )
         plt.errorbar(
             self._wavelengths[(self._outlier_mask == 0) | (self._gap_mask == 0)],
-            curve[(self._outlier_mask == 0) | (self._gap_mask == 0)],
-            yerr=noise[(self._outlier_mask == 0) | (self._gap_mask == 0)],
+            wiggle_data[(self._outlier_mask == 0) | (self._gap_mask == 0)],
+            yerr=wiggle_noise[(self._outlier_mask == 0) | (self._gap_mask == 0)],
             label="Rejected outliers",
             ls="None",
             marker="o",
@@ -822,9 +869,9 @@ class WiggleCleaner(object):
         #     )
 
         plt.xlabel("Wavelengths")
-        plt.ylabel("Modulation curve")
+        plt.ylabel("Wiggle factor")
         plt.legend()
-        plt.ylim(np.min(curve) * 0.9, np.max(curve) * 1.1)
+        plt.ylim(np.min(wiggle_data) * 0.9, np.max(wiggle_data) * 1.1)
         plt.show()
 
     def get_model_uncertainty(
@@ -860,9 +907,10 @@ class WiggleCleaner(object):
         x,
         y,
         aperture_size=4,
+        shell_size=0,
     ):
         """
-        Get the modulation curve.
+        Get the modulation wiggle_data.
 
         :param spaxel_x: Spaxel x
         :type spaxel_x: int
@@ -870,23 +918,14 @@ class WiggleCleaner(object):
         :type spaxel_y: int
         :param aperture: aperture size to sum the spectra to average out the wiggles
         :type aperture: int
-        :return: Modulation curve and noise
+        :return: Modulation wiggle_data and noise
         :rtype: Tuple of np.ndarray
         """
-        spectra = self._datacube[:, x, y]
-        noise = self._noise_cube[:, x, y]
+        spectra, noise, aperture_spectra, aperture_noise, shell_spectra, shell_noise = (
+            self.get_spectra_set(x, y, aperture_size, shell_size)
+        )
+
         wavelengths = self.scale_wavelengths_negative1_to_1(self._wavelengths)
-
-        # make circular mask around the pixel with radius s
-        mask = np.zeros_like(self._datacube[0], dtype=bool)
-
-        for i in range(x - 2 * aperture_size, x + 2 * aperture_size):
-            for j in range(y - 2 * aperture_size, y + 2 * aperture_size):
-                if (i - x) ** 2 + (j - y) ** 2 <= aperture_size**2:
-                    mask[i, j] = True
-
-        aperture_spectra = np.nansum(self._datacube[:, mask], axis=(1))
-        aperture_noise = np.sqrt(np.nansum(self._noise_cube[:, mask] ** 2, axis=(1)))
 
         # fit c_1 * aperture_spectra + c_3 * wavelengths**a + (c_4 * wavelengths**2 + c_5 * wavelengths + c_6)
         # given non-linear parameter a, treat all c_1 parameters as linear parameters and derive them using linear inversion
@@ -903,48 +942,115 @@ class WiggleCleaner(object):
                 ]
             )
 
+            if shell_size > 0:
+                # Add the shell spectra to the design matrix
+                A = np.column_stack([A, shell_spectra])
+
             # Solve the linear least squares problem
             coefficients, _, _, _ = lstsq(A, spectra)
 
             return A @ coefficients, coefficients
 
-        def residual(a):
+        def residual_vector(a):
             model_spectra, _ = model(a)
-            return np.sum((model_spectra - spectra) ** 2)
+            return (model_spectra - spectra) / noise
 
-        result = minimize_scalar(residual, bounds=[0, 6], method="bounded")
+        # def residual_scalar(a):
+        #     return np.sum((residual_vector(a)) ** 2)
+
+        # result_init = minimize_scalar(residual_scalar, bounds=[0, 6], method="bounded")
+        # print(result_init.x)
+        # x0 = np.array(
+        #     [
+        #         np.max(spectra) / np.max(aperture_spectra),
+        #         0,
+        #         0,
+        #         0,
+        #         0,
+        #     ]
+        # )
+        # print(x0)
+        result = least_squares(residual_vector, 0.5, bounds=(0, 6))
+
         best_model, _ = model(result.x)
 
         model_noise = aperture_noise / aperture_spectra * best_model
 
-        curve = spectra / best_model
-        curve_noise = (
-            np.sqrt((noise / spectra) ** 2 + (model_noise / best_model) ** 2) * curve
+        wiggle_data = spectra / best_model
+        wiggle_data_noise = (
+            np.sqrt((noise / spectra) ** 2 + (model_noise / best_model) ** 2)
+            * wiggle_data
         )
 
         # replace non-positive noise with minimum non-negative value
-        min_positive_noise = np.nanmin(curve_noise[curve_noise > 0])
-        curve_noise[curve_noise <= 0] = min_positive_noise
+        min_positive_noise = np.nanmin(wiggle_data_noise[wiggle_data_noise > 0])
+        wiggle_data_noise[wiggle_data_noise <= 0] = min_positive_noise
 
-        # # normalize the curve
-        # median = np.nanmedian(curve)
-        # curve /= median
-        # curve_noise /= median
+        # # normalize the wiggle_data
+        # median = np.nanmedian(wiggle_data)
+        # wiggle_data /= median
+        # wiggle_data_noise /= median
 
-        return curve, curve_noise
+        return wiggle_data, wiggle_data_noise
+
+    def get_spectra_set(self, x, y, aperture_size, shell_size):
+        """
+        Get the spectra set.
+
+        :param x: x coordinate
+        :type x: int
+        :param y: y coordinate
+        :type y: int
+        :param aperture_size: Aperture size
+        :type aperture_size: int
+
+            :param shell_size: Shell size
+            :type shell_size: int
+        """
+        spectra = deepcopy(self._datacube[:, x, y])
+        noise = deepcopy(self._noise_cube[:, x, y])
+
+        # make circular mask around the pixel with radius s
+        mask = np.zeros_like(self._datacube[0], dtype=bool)
+        shell_mask = np.zeros_like(self._datacube[0], dtype=bool)
+        for i in range(x - 2 * aperture_size, x + 2 * aperture_size):
+            for j in range(y - 2 * aperture_size, y + 2 * aperture_size):
+                if (i - x) ** 2 + (j - y) ** 2 <= aperture_size**2:
+                    mask[i, j] = True
+
+                if ((i - x) ** 2 + (j - y) ** 2 <= aperture_size**2) and (
+                    i - x
+                ) ** 2 + (j - y) ** 2 > (aperture_size - shell_size) ** 2:
+                    shell_mask[i, j] = True
+
+        aperture_spectra = np.nansum(self._datacube[:, mask], axis=(1))
+        aperture_noise = np.sqrt(np.nansum(self._noise_cube[:, mask] ** 2, axis=(1)))
+
+        shell_spectra = np.nansum(self._datacube[:, shell_mask], axis=(1))
+        shell_noise = np.sqrt(np.nansum(self._noise_cube[:, shell_mask] ** 2, axis=(1)))
+
+        return (
+            spectra,
+            noise,
+            aperture_spectra,
+            aperture_noise,
+            shell_spectra,
+            shell_noise,
+        )
 
     def fit_wiggle_data_with_model_selection(
         self,
-        curve,
-        noise=None,
+        wiggle_data,
+        wiggle_noise=None,
         n_amplitude=10,
         n_frequency=1,
         min_n_amplitude=None,
         min_n_frequency=None,
-        specified_noise_level=0.005,
+        specified_noise_level=0,
         init_peak_detection_proximity_threshold=200,
         plot=False,
         selection_criteria="bic",
+        min_selection_difference=None,
         extract_covariance=True,
         include_scatter=True,
         outlier_rejection_method=None,
@@ -958,10 +1064,10 @@ class WiggleCleaner(object):
         asymmetric_sharpening=False,
     ):
         """
-        Fit the curve with selecting amplitude polynomial order based on BIC.
+        Fit the wiggle_data with selecting amplitude polynomial order based on BIC.
 
-        :param curve: Curve
-        :type curve: np.ndarray
+        :param wiggle_data: wiggle_data
+        :type wiggle_data: np.ndarray
         :param noise: Noise
         :type noise: np.ndarray
         :param n_amplitude: Maximum number of amplitude parameters
@@ -996,7 +1102,7 @@ class WiggleCleaner(object):
         :rtype: np.ndarray
         """
         print(
-            f"Computing {selection_criteria} for choices of n_amplitude and n_frequency..."
+            f"Computing {selection_criteria.upper()} for choices of n_amplitude and n_frequency..."
         )
         if min_n_amplitude is None:
             min_n_amplitude = n_amplitude
@@ -1009,11 +1115,11 @@ class WiggleCleaner(object):
             raise ValueError("min_n_frequency must be at least 2")
 
         best_metric = None
-        for i in tqdm(range(n_amplitude, min_n_amplitude - 1, -1)):
-            for k in range(n_frequency, min_n_frequency - 1, -1):
+        for k in tqdm(range(min_n_frequency, n_frequency + 1)):
+            for i in range(min_n_amplitude, n_amplitude + 1):
                 result_params, cov_matrix = self.fit_wiggle_data(
-                    curve,
-                    noise,
+                    wiggle_data,
+                    wiggle_noise,
                     n_amplitude=i,
                     n_frequency=k,
                     specified_noise_level=specified_noise_level,
@@ -1033,11 +1139,17 @@ class WiggleCleaner(object):
                 )
 
                 fit_metric = self.get_model_selection_metric(
-                    curve,
-                    noise,
+                    wiggle_data,
+                    wiggle_noise,
                     result_params,
                     selection_criteria=selection_criteria,
                 )
+
+                if min_selection_difference is None:
+                    if selection_criteria == "bic":
+                        min_selection_difference = 10
+                    elif selection_criteria == "chi2":
+                        min_selection_difference = 25
 
                 if best_metric is None:
                     tqdm.write(
@@ -1047,7 +1159,7 @@ class WiggleCleaner(object):
                     best_n_frequency = k
                     best_metric = fit_metric
 
-                elif fit_metric < best_metric:
+                elif fit_metric < best_metric - min_selection_difference:
                     tqdm.write(
                         f"n_amplitude: {i}, n_frequency: {k}, {selection_criteria}: {fit_metric}"
                     )
@@ -1056,8 +1168,8 @@ class WiggleCleaner(object):
                     best_metric = fit_metric
 
         best_params, cov_matrix = self.fit_wiggle_data(
-            curve,
-            noise,
+            wiggle_data,
+            wiggle_noise,
             n_amplitude=best_n_amplitude,
             n_frequency=best_n_frequency,
             specified_noise_level=specified_noise_level,
@@ -1084,8 +1196,8 @@ class WiggleCleaner(object):
 
         if plot:
             self.plot_model(
-                curve,
-                noise,
+                wiggle_data,
+                wiggle_noise,
                 best_params,
                 cov_matrix=cov_matrix,
             )
@@ -1093,15 +1205,15 @@ class WiggleCleaner(object):
         return best_params, cov_matrix
 
     def get_model_selection_metric(
-        self, curve, noise, result_params, selection_criteria="bic"
+        self, wiggle_data, wiggle_noise, result_params, selection_criteria="bic"
     ):
         """
         Get the fit metric: BIC or chi^2.
 
-        :param curve: Curve
-        :type curve: np.ndarray
-        :param noise: Noise
-        :type noise: np.ndarray
+        :param wiggle_data: wiggle_data
+        :type wiggle_data: np.ndarray
+        :param wiggle_noise: wiggle noise
+        :type wiggle_noise: np.ndarray
         :param result_params: Fitted parameters
         :type result_params: np.ndarray
         :param selection_criteria: Selection criteria, "bic" or "chi2"
@@ -1112,7 +1224,7 @@ class WiggleCleaner(object):
         n_dof = np.sum(np.logical_or(self._gap_mask, self._outlier_mask))
         k = len(result_params)
 
-        chi2 = self.cost_function(result_params, curve, noise)
+        chi2 = self.cost_function(result_params, wiggle_data, wiggle_noise)
 
         if selection_criteria == "bic":
             return chi2 + k * np.log(n_dof)
@@ -1121,23 +1233,35 @@ class WiggleCleaner(object):
         else:
             raise ValueError(f"Invalid selection_criteria: {selection_criteria}")
 
-    def is_wiggle_detected(self, curve, noise, result_params, sigma_threshold=5):
+    def is_wiggle_detected(
+        self,
+        wiggle_data,
+        wiggle_noise,
+        result_params,
+        sigma_threshold=5,
+        variance_ratio_threshold=0.8,
+        verbose=True,
+    ):
         """
         Check if wiggle is detected.
 
-        :param curve: Curve
-        :type curve: np.ndarray
-        :param noise: Noise
-        :type noise: np.ndarray
+        :param wiggle_data: wiggle_data
+        :type wiggle_data: np.ndarray
+        :param wiggle_noise: wiggle_noise
+        :type wiggle_noise: np.ndarray
         :param sigma_threshold: Sigma threshold
         :type sigma_threshold: float
+        :param variance_ratio_threshold: Variance ratio threshold, set 0 to disable
+        :type variance_ratio_threshold: float
+        :param verbose: If True, print the results
+        :type verbose: bool
         :return: True if wiggle is detected
         :rtype: bool
         """
 
         # residual for flat spectrum
-        null_residual = curve - np.ones_like(curve)
-        n_data = len(curve)
+        null_residual = wiggle_data - np.ones_like(wiggle_data)
+        n_data = np.sum(self._gap_mask)
 
         # p = np.percentile(np.abs(residual), 97.5)
         # indices = np.abs(residual) < p
@@ -1148,34 +1272,54 @@ class WiggleCleaner(object):
         #     total_noise = np.sqrt(noise**2 + scatter_f**2 * model**2)
         # else:
         #     total_noise = noise
-        total_noise = noise
+        total_noise = wiggle_noise
 
         chi2 = np.sum(
-            ((null_residual**2 / total_noise**2) * self._gap_mask * self._outlier_mask)
+            (
+                (null_residual**2 / total_noise**2) * self._gap_mask
+            )  # * self._outlier_mask)
         )
         chi2_red = chi2 / n_data
 
         model = self.wiggle_model(result_params)
-        model_residual = curve - model
+        model_residual = wiggle_data - model
         chi2_model_red = (
             np.sum(
-                model_residual**2 / total_noise**2 * self._gap_mask * self._outlier_mask
+                model_residual**2
+                / total_noise**2
+                * self._gap_mask  # * self._outlier_mask
             )
             / n_data
         )
 
         sigma = np.sqrt(chi2_red - chi2_model_red)
 
-        return sigma > sigma_threshold
+        model_values = model[np.logical_and(self._gap_mask, self._outlier_mask)]
+        residual_values = model_residual[
+            np.logical_and(self._gap_mask, self._outlier_mask)
+        ]
+        model_variance = np.std(model_values)
+        residual_variance = np.std(residual_values)
+
+        if verbose:
+            print(f"Wiggle detection sigma: {sigma:.2f}")
+            print(
+                f"Model variance: {model_variance:.4f}, residual variance: {residual_variance:.4f}"
+            )
+
+        return (sigma > sigma_threshold) and (
+            model_variance > variance_ratio_threshold * residual_variance
+        )
 
     def clean_cube(
         self,
         wiggle_detection_sigma_threshold=3,
+        wiggle_detection_variance_ratio_threshold=0.8,
         n_amplitude=10,
         n_frequency=1,
         min_n_amplitude=None,
         min_n_frequency=None,
-        n_amplitude_for_amplitude=None,
+        n_amplitude_for_detection=None,
         n_frequency_for_detection=None,
         specified_noise_level=0,
         cleaning_mask=None,
@@ -1195,7 +1339,7 @@ class WiggleCleaner(object):
         asymmetric_sharpening=False,
         num_samples_uncertainty_region=1000,
         verbose=True,
-        plot=True,
+        plot=False,
     ):
         """
         Clean the datacube.
@@ -1278,19 +1422,23 @@ class WiggleCleaner(object):
                     if not cleaning_mask[i, j]:
                         continue
 
-                    curve, noise = self.get_wiggle_data(
+                    wiggle_data, wiggle_noise = self.get_wiggle_data(
                         i, j, aperture_size=aperture_size
                     )
 
-                    if n_amplitude_for_amplitude is None:
-                        n_amplitude_for_amplitude = n_amplitude
+                    if n_amplitude_for_detection is None:
+                        n_amplitude_for_detection = n_amplitude
                     if n_frequency_for_detection is None:
                         n_frequency_for_detection = n_frequency
 
-                    result_params, _ = self.fit_wiggle_data(
-                        curve,
-                        noise,
-                        n_amplitude=n_amplitude_for_amplitude,
+                    if verbose:
+                        print("###########################")
+                        print(f"Fitting spaxel: {i}, {j}")
+
+                    result_params, cov_matrix = self.fit_wiggle_data(
+                        wiggle_data,
+                        wiggle_noise,
+                        n_amplitude=n_amplitude_for_detection,
                         n_frequency=n_frequency_for_detection,
                         specified_noise_level=specified_noise_level,
                         init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
@@ -1305,63 +1453,71 @@ class WiggleCleaner(object):
                         sigma_clip_max_iterations=sigma_clip_max_iterations,
                         symmetric_sharpening=symmetric_sharpening,
                         asymmetric_sharpening=asymmetric_sharpening,
-                        plot=False,
+                        plot=plot,
                     )
 
                     if self.is_wiggle_detected(
-                        curve,
-                        noise,
+                        wiggle_data,
+                        wiggle_noise,
                         result_params,
                         sigma_threshold=wiggle_detection_sigma_threshold,
+                        variance_ratio_threshold=wiggle_detection_variance_ratio_threshold,
+                        verbose=verbose,
                     ):
-                        print(f"Wiggle detected. Cleaning spaxel: {i}, {j}.")
+                        if verbose:
+                            print(f"Wiggle detected. Cleaning spaxel: {i}, {j}.")
                         cleaned_mask[i, j] = 1
 
                         if min_n_amplitude is None or min_n_frequency is None:
-                            result_params, cov_matrix = self.fit_wiggle_data(
-                                curve,
-                                noise,
-                                n_amplitude=n_amplitude,
-                                n_frequency=n_frequency,
-                                specified_noise_level=specified_noise_level,
-                                init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
-                                include_scatter=include_scatter,
-                                outlier_rejection_method=outlier_rejection_method,
-                                use_huber_loss=use_huber_loss,
-                                huber_delta=huber_delta,
-                                fdr_alpha=fdr_alpha,
-                                fdr_outlier_max_fraction=fdr_outlier_max_fraction,
-                                extract_covariance=extract_uncertainty,
-                                sigma_clip_sigma=sigma_clip_sigma,
-                                sigma_clip_max_iterations=sigma_clip_max_iterations,
-                                symmetric_sharpening=symmetric_sharpening,
-                                asymmetric_sharpening=asymmetric_sharpening,
-                                plot=plot,
-                            )
+                            if not (
+                                n_amplitude_for_detection == n_amplitude
+                                and n_frequency_for_detection == n_frequency
+                            ):
+                                result_params, cov_matrix = self.fit_wiggle_data(
+                                    wiggle_data,
+                                    wiggle_noise,
+                                    n_amplitude=n_amplitude,
+                                    n_frequency=n_frequency,
+                                    specified_noise_level=specified_noise_level,
+                                    init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
+                                    include_scatter=include_scatter,
+                                    outlier_rejection_method=outlier_rejection_method,
+                                    use_huber_loss=use_huber_loss,
+                                    huber_delta=huber_delta,
+                                    fdr_alpha=fdr_alpha,
+                                    fdr_outlier_max_fraction=fdr_outlier_max_fraction,
+                                    extract_covariance=extract_uncertainty,
+                                    sigma_clip_sigma=sigma_clip_sigma,
+                                    sigma_clip_max_iterations=sigma_clip_max_iterations,
+                                    symmetric_sharpening=symmetric_sharpening,
+                                    asymmetric_sharpening=asymmetric_sharpening,
+                                    plot=False,
+                                )
                         else:
-                            result_params, cov_matrix = self.fit_curve_with_best_bic(
-                                curve,
-                                noise,
-                                n_amplitude=n_amplitude,
-                                n_frequency=n_frequency,
-                                min_n_amplitude=min_n_amplitude,
-                                min_n_frequency=min_n_frequency,
-                                specified_noise_level=specified_noise_level,
-                                init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
-                                include_scatter=include_scatter,
-                                outlier_rejection_method=outlier_rejection_method,
-                                use_huber_loss=use_huber_loss,
-                                fdr_alpha=fdr_alpha,
-                                fdr_outlier_max_fraction=fdr_outlier_max_fraction,
-                                extract_covariance=extract_uncertainty,
-                                sigma_clip_sigma=sigma_clip_sigma,
-                                sigma_clip_max_iterations=sigma_clip_max_iterations,
-                                symmetric_sharpening=symmetric_sharpening,
-                                asymmetric_sharpening=asymmetric_sharpening,
-                                plot=plot,
+                            result_params, cov_matrix = (
+                                self.fit_wiggle_data_with_best_bic(
+                                    wiggle_data,
+                                    wiggle_noise,
+                                    n_amplitude=n_amplitude,
+                                    n_frequency=n_frequency,
+                                    min_n_amplitude=min_n_amplitude,
+                                    min_n_frequency=min_n_frequency,
+                                    specified_noise_level=specified_noise_level,
+                                    init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
+                                    include_scatter=include_scatter,
+                                    outlier_rejection_method=outlier_rejection_method,
+                                    use_huber_loss=use_huber_loss,
+                                    fdr_alpha=fdr_alpha,
+                                    fdr_outlier_max_fraction=fdr_outlier_max_fraction,
+                                    extract_covariance=extract_uncertainty,
+                                    sigma_clip_sigma=sigma_clip_sigma,
+                                    sigma_clip_max_iterations=sigma_clip_max_iterations,
+                                    symmetric_sharpening=symmetric_sharpening,
+                                    asymmetric_sharpening=asymmetric_sharpening,
+                                    plot=False,
+                                )
                             )
 
-                        print(self._n_amplitude, self._n_frequency, len(result_params))
                         amplitude_params, frequency_params, phi = self.split_params(
                             result_params
                         )
