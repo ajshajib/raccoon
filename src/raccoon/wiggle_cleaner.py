@@ -29,6 +29,7 @@ class WiggleCleaner(object):
         datacube,
         noise_cube,
         gaps=None,
+        continuum_diff_polynomial_order=2,
     ):
         """
         Initialize the WiggleCleaner object.
@@ -41,20 +42,10 @@ class WiggleCleaner(object):
         :type noise_cube: np.ndarray
         :param gaps: Gaps
         :type gaps: list
-        :param n_amplitude: Number of amplitude parameters
-        :type n_amplitude: int
-        :param n_frequency: Number of frequency parameters
-        :type n_frequency: int
-        :param symmetric_sharpening: If True, use sharpen symmetrically on both peaks and troughs
-        :type symmetric_sharpening: bool
-        :param asymmetric_sharpening: If True, use sharpen and smooth oppositely on peaks and troughs
-        :type asymmetric_sharpening: bool
-        :param use_huber_loss: If True, use Huber loss function
-        :type use_huber_loss: bool
-        :param huber_delta: Delta for Huber loss function
-        :type huber_delta: float
-        :param outlier_detection: Outlier detection method, "fdr" or "sigma_clip", set None to disable
-        :type outlier_detection: str
+        :param continuum_diff_polynomial_order: Continuum polynomial order for the difference between the single spaxel and aperture spectra
+        :type continuum_diff_polynomial_order: int
+        :return: None
+        :rtype: None
         """
         self._wavelengths = np.array(wavelengths)
         self._datacube = datacube
@@ -62,6 +53,7 @@ class WiggleCleaner(object):
         self._gaps = np.array(gaps)
         self._n_amplitude = -1
         self._n_frequency = -1
+        self._continuum_diff_polynomial_order = continuum_diff_polynomial_order
 
         self._symmetric_sharpening = False
         self._asymmetric_sharpening = False
@@ -332,48 +324,95 @@ class WiggleCleaner(object):
 
         return n_amplitude, n_frequency
 
-    def residual_vector_full_fit(self, params, x, y, aperture_size=4, shell_size=0):
+    def model_full_fit(
+        self,
+        params,
+        x,
+        y,
+        aperture_radius,
+        annulus_outer_radius=0,
+        annulus_inner_radius=0,
+    ):
         """ """
         (
             spectra,
             noise,
             aperture_spectra,
             aperture_noise,
-            shell_spectra,
-            shell_noise,
-        ) = self.get_spectra_set(x, y, aperture_size, shell_size)
+            annulus_spectra,
+            annulus_noise,
+        ) = self.get_spectra_set(
+            x, y, aperture_radius, annulus_outer_radius, annulus_inner_radius
+        )
 
         wavelengths = self.scale_wavelengths_negative1_to_1(self._wavelengths)
 
         # fit c_1 * aperture_spectra + c_3 * wavelengths**a + (c_4 * wavelengths**2 + c_5 * wavelengths + c_6)
         # given non-linear parameter a, treat all c_1 parameters as linear parameters and derive them using linear inversion
 
-        wiggle_model = self.wiggle_model(params)
+        wiggle_model = self.wiggle_model(params[:-1])
 
-        def model(a):
-            # Construct the design matrix for the current 'a'
+        A = np.column_stack(
+            [
+                aperture_spectra,
+                np.ones_like(wavelengths),
+            ]
+        )
+        for i in range(1, self._continuum_diff_polynomial_order + 1):
             A = np.column_stack(
                 [
-                    aperture_spectra * wiggle_model,
-                    self.scale_wavelengths_to_0_1(self._wavelengths) ** a,
-                    wavelengths**2,
-                    wavelengths,
-                    np.ones_like(wavelengths),
+                    A,
+                    wavelengths**i,
                 ]
             )
 
-            if shell_size > 0:
-                # Add the shell spectra to the design matrix
-                A = np.column_stack([A, shell_spectra * wiggle_model])
+        A = np.column_stack(
+            [
+                A,
+                self.scale_wavelengths_to_0_1(self._wavelengths) ** np.abs(params[-1]),
+            ]
+        )
 
-            # Solve the linear least squares problem
-            coefficients, _, _, _ = lstsq(A, spectra)
+        if annulus_outer_radius > 0:
+            # Add the annulus spectra to the design matrix
+            A = np.column_stack([A, annulus_spectra])
 
-            return A @ coefficients, coefficients
+        A *= wiggle_model[:, np.newaxis]
 
-        def residual_vector(a):
-            model_spectra, _ = model(a)
-            return (model_spectra - spectra) / noise
+        # Solve the linear least squares problem
+        coefficients, _, _, _ = lstsq(A, spectra)
+
+        full_model = A @ coefficients
+
+        fractional_variance = (noise / spectra) ** 2 + (
+            aperture_noise / aperture_spectra
+        ) ** 2
+        if annulus_outer_radius > 0:
+            fractional_variance += (annulus_noise / annulus_spectra) ** 2
+
+        total_noise = np.sqrt(fractional_variance * full_model**2)
+
+        return full_model, spectra, total_noise
+
+    def residual_vector_full_fit(
+        self,
+        params,
+        x,
+        y,
+        aperture_radius,
+        annulus_outer_radius=0,
+        annulus_inner_radius=0,
+    ):
+        """ """
+        full_model, spectra, total_noise = self.model_full_fit(
+            params,
+            x,
+            y,
+            aperture_radius,
+            annulus_outer_radius,
+            annulus_inner_radius,
+        )
+        return (full_model - spectra) / total_noise
 
     def residual_vector(self, params, wiggle_data, wiggle_noise):
         """ "
@@ -479,8 +518,11 @@ class WiggleCleaner(object):
 
     def fit_wiggle_data(
         self,
-        wiggle_data,
-        wiggle_noise=None,
+        x,
+        y,
+        aperture_radius=4,
+        annulus_outer_radius=5,
+        annulus_inner_radius=3,
         n_amplitude=None,
         n_frequency=None,
         specified_noise_level=0,
@@ -499,6 +541,7 @@ class WiggleCleaner(object):
         asymmetric_sharpening=False,
         plot=False,
         verbose=False,
+        fit_full_model=False,
     ):
         """
         Fit the wiggle data.
@@ -543,6 +586,10 @@ class WiggleCleaner(object):
         assert (
             fdr_outlier_max_fraction < 1
         ), "fdr_outlier_max_fraction must be less than 1"
+
+        wiggle_data, wiggle_noise = self.get_wiggle_data(
+            x, y, aperture_radius, annulus_outer_radius, annulus_inner_radius
+        )
 
         self._include_scatter = include_scatter
         self._outlier_rejection_method = outlier_rejection_method
@@ -664,6 +711,67 @@ class WiggleCleaner(object):
 
         result_params = result.x
 
+        if fit_full_model:
+            x0 = np.concatenate(
+                [
+                    result_params,
+                    np.array([1.5]),
+                ]
+            )
+
+            result = least_squares(
+                self.residual_vector_full_fit,
+                x0,
+                args=(
+                    x,
+                    y,
+                    aperture_radius,
+                    annulus_outer_radius,
+                    annulus_inner_radius,
+                ),
+            )
+
+            # if plot:
+            #     bestfit_model, spectra, noise = self.model_full_fit(
+            #         result.x,
+            #         x,
+            #         y,
+            #         aperture_radius,
+            #         annulus_outer_radius,
+            #         annulus_inner_radius,
+            #     )
+
+            #     plt.plot(
+            #         self._wavelengths,
+            #         bestfit_model,
+            #         label="Full model",
+            #         lw=1,
+            #         c="red",
+            #     )
+            #     plt.plot(
+            #         self._wavelengths,
+            #         spectra,
+            #         label="Data",
+            #         lw=1,
+            #         c="blue",
+            #     )
+            #     plt.xlabel("Wavelengths")
+            #     plt.ylabel("Flux")
+            #     plt.legend()
+            #     plt.show()
+
+            #     plt.plot(
+            #         self._wavelengths,
+            #         (bestfit_model - spectra) / noise,
+            #         label="Residuals",
+            #         lw=1,
+            #         c="green",
+            #     )
+            #     plt.xlabel("Wavelengths")
+            #     plt.ylabel("Flux")
+            #     plt.legend()
+            #     plt.show()
+
         if extract_covariance:
             residuals = result.fun
             jacobian = result.jac
@@ -684,6 +792,9 @@ class WiggleCleaner(object):
 
             # Compute covariance matrix using pseudoinverse for stability
             cov_matrix = sigma_squared * np.linalg.pinv(jacobian.T @ jacobian)
+
+            if fit_full_model:
+                cov_matrix = cov_matrix[:-1, :-1]
         else:
             cov_matrix = None
 
@@ -691,6 +802,21 @@ class WiggleCleaner(object):
             print(
                 "Cost: ", self.cost_function(result_params, wiggle_data, wiggle_noise)
             )
+            if fit_full_model:
+                print(
+                    "Cost (full model): ",
+                    np.sum(
+                        self.residual_vector_full_fit(
+                            result.x,
+                            x,
+                            y,
+                            aperture_radius,
+                            annulus_outer_radius,
+                            annulus_inner_radius,
+                        )
+                        ** 2
+                    ),
+                )
 
         if plot:
             self.plot_model(
@@ -817,7 +943,10 @@ class WiggleCleaner(object):
         orange = "#ff7f00"
         grey = "#999999"
 
-        plt.errorbar(
+        fig = plt.figure(figsize=(10, 6))
+        ax = fig.add_subplot(111)
+
+        ax.errorbar(
             self._wavelengths[(self._outlier_mask == 1) & (self._gap_mask == 1)],
             wiggle_data[(self._outlier_mask == 1) & (self._gap_mask == 1)],
             yerr=wiggle_noise[(self._outlier_mask == 1) & (self._gap_mask == 1)],
@@ -828,7 +957,7 @@ class WiggleCleaner(object):
             alpha=0.3,
             c=blue,
         )
-        plt.errorbar(
+        ax.errorbar(
             self._wavelengths[(self._outlier_mask == 0) | (self._gap_mask == 0)],
             wiggle_data[(self._outlier_mask == 0) | (self._gap_mask == 0)],
             yerr=wiggle_noise[(self._outlier_mask == 0) | (self._gap_mask == 0)],
@@ -841,23 +970,49 @@ class WiggleCleaner(object):
         )
 
         model = self.wiggle_model(result_params)
-        plt.plot(self._wavelengths, model, label="Model", lw=1, c=orange)
+
+        # line_color = np.random.choice(
+        #     [
+        #         "#e41a1c",
+        #         "#377eb8",
+        #         "#4daf4a",
+        #         "#984ea3",
+        #         "#ff7f00",
+        #         "#ffff33",
+        #         "#a65628",
+        #         "#f781bf",
+        #         "#999999",
+        #         "#66c2a5",
+        #         "#fc8d62",
+        #         "#8da0cb",
+        #     ]
+        # )
+
+        line_color = orange
+
+        ax.plot(
+            self._wavelengths,
+            model,
+            label=f"Model",  # n_param({len(result_params)})",
+            lw=1,
+            c=line_color,
+        )
 
         if cov_matrix is not None:
             model_uncertainty = self.get_model_uncertainty(
                 result_params, cov_matrix, num_samples_uncertainty_region
             )
 
-            plt.fill_between(
+            ax.fill_between(
                 self._wavelengths,
                 model - model_uncertainty,
                 model + model_uncertainty,
-                color=orange,
+                color=line_color,
                 alpha=0.4,
             )
 
         for g in self._gaps:
-            plt.axvspan(g[0], g[1], color="black", alpha=0.1)
+            ax.axvspan(g[0], g[1], color="black", alpha=0.1)
 
         # if x0 is not None:
         #     plt.plot(
@@ -868,10 +1023,17 @@ class WiggleCleaner(object):
         #         c=red,
         #     )
 
-        plt.xlabel("Wavelengths")
-        plt.ylabel("Wiggle factor")
-        plt.legend()
-        plt.ylim(np.min(wiggle_data) * 0.9, np.max(wiggle_data) * 1.1)
+        ax.set_xlabel(r"Wavelengths")
+        ax.set_ylabel("Wiggle model")
+        ax.legend()
+        ax.set_ylim(np.min(wiggle_data) * 0.95, np.max(wiggle_data) * 1.05)
+
+        delta_lambda = self._wavelengths[1] - self._wavelengths[0]
+        ax.set_xlim(
+            self._wavelengths[0] - delta_lambda * 2,
+            self._wavelengths[-1] + delta_lambda * 2,
+        )
+
         plt.show()
 
     def get_model_uncertainty(
@@ -906,8 +1068,9 @@ class WiggleCleaner(object):
         self,
         x,
         y,
-        aperture_size=4,
-        shell_size=0,
+        aperture_radius=4,
+        annulus_outer_radius=0,
+        annulus_inner_radius=0,
     ):
         """
         Get the modulation wiggle_data.
@@ -921,8 +1084,15 @@ class WiggleCleaner(object):
         :return: Modulation wiggle_data and noise
         :rtype: Tuple of np.ndarray
         """
-        spectra, noise, aperture_spectra, aperture_noise, shell_spectra, shell_noise = (
-            self.get_spectra_set(x, y, aperture_size, shell_size)
+        (
+            spectra,
+            noise,
+            aperture_spectra,
+            aperture_noise,
+            annulus_spectra,
+            annulus_noise,
+        ) = self.get_spectra_set(
+            x, y, aperture_radius, annulus_outer_radius, annulus_inner_radius
         )
 
         wavelengths = self.scale_wavelengths_negative1_to_1(self._wavelengths)
@@ -935,21 +1105,47 @@ class WiggleCleaner(object):
             A = np.column_stack(
                 [
                     aperture_spectra,
-                    self.scale_wavelengths_to_0_1(self._wavelengths) ** a,
-                    wavelengths**2,
-                    wavelengths,
                     np.ones_like(wavelengths),
                 ]
             )
 
-            if shell_size > 0:
-                # Add the shell spectra to the design matrix
-                A = np.column_stack([A, shell_spectra])
+            for i in range(1, self._continuum_diff_polynomial_order + 1):
+                A = np.column_stack(
+                    [
+                        A,
+                        wavelengths**i,
+                    ]
+                )
+            A = np.column_stack(
+                [
+                    A,
+                    self.scale_wavelengths_to_0_1(self._wavelengths) ** a,
+                ]
+            )
+
+            if annulus_outer_radius > 0:
+                # Add the annulus spectra to the design matrix
+                A = np.column_stack(
+                    [
+                        aperture_spectra,
+                        annulus_spectra,
+                        self.scale_wavelengths_to_0_1(self._wavelengths) ** a,
+                        wavelengths**2,
+                        wavelengths,
+                        np.ones_like(wavelengths),
+                    ]
+                )
 
             # Solve the linear least squares problem
             coefficients, _, _, _ = lstsq(A, spectra)
 
             return A @ coefficients, coefficients
+
+        variance_fraction = (
+            (noise / spectra) ** 2
+            + (aperture_noise / aperture_spectra) ** 2
+            + (annulus_noise / annulus_spectra) ** 2
+        )
 
         def residual_vector(a):
             model_spectra, _ = model(a)
@@ -993,7 +1189,9 @@ class WiggleCleaner(object):
 
         return wiggle_data, wiggle_data_noise
 
-    def get_spectra_set(self, x, y, aperture_size, shell_size):
+    def get_spectra_set(
+        self, x, y, aperture_radius, annulus_outer_radius, annulus_inner_radius
+    ):
         """
         Get the spectra set.
 
@@ -1001,47 +1199,55 @@ class WiggleCleaner(object):
         :type x: int
         :param y: y coordinate
         :type y: int
-        :param aperture_size: Aperture size
-        :type aperture_size: int
-
-            :param shell_size: Shell size
-            :type shell_size: int
+        :param aperture_radius: Aperture radius
+        :type aperture_radius: int
+        :param annulus_outer_radius: annulus outer radius
+        :type annulus_outer_radius: int
+        :param annulus_inner_radius: annulus inner radius
+        :type annulus_inner_radius: int
+        :return: spectra, noise, aperture_spectra, aperture_noise, annulus_spectra, annulus_noise
+        :rtype: Tuple of np.ndarray
         """
         spectra = deepcopy(self._datacube[:, x, y])
         noise = deepcopy(self._noise_cube[:, x, y])
 
         # make circular mask around the pixel with radius s
         mask = np.zeros_like(self._datacube[0], dtype=bool)
-        shell_mask = np.zeros_like(self._datacube[0], dtype=bool)
-        for i in range(x - 2 * aperture_size, x + 2 * aperture_size):
-            for j in range(y - 2 * aperture_size, y + 2 * aperture_size):
-                if (i - x) ** 2 + (j - y) ** 2 <= aperture_size**2:
+        annulus_mask = np.zeros_like(self._datacube[0], dtype=bool)
+        for i in range(x - 2 * aperture_radius, x + 2 * aperture_radius):
+            for j in range(y - 2 * aperture_radius, y + 2 * aperture_radius):
+                if (i - x) ** 2 + (j - y) ** 2 <= aperture_radius**2:
                     mask[i, j] = True
 
-                if ((i - x) ** 2 + (j - y) ** 2 <= aperture_size**2) and (
-                    i - x
-                ) ** 2 + (j - y) ** 2 > (aperture_size - shell_size) ** 2:
-                    shell_mask[i, j] = True
+                if ((i - x) ** 2 + (j - y) ** 2 <= annulus_outer_radius**2) and (
+                    (i - x) ** 2 + (j - y) ** 2 > annulus_inner_radius**2
+                ):
+                    annulus_mask[i, j] = True
 
         aperture_spectra = np.nansum(self._datacube[:, mask], axis=(1))
         aperture_noise = np.sqrt(np.nansum(self._noise_cube[:, mask] ** 2, axis=(1)))
 
-        shell_spectra = np.nansum(self._datacube[:, shell_mask], axis=(1))
-        shell_noise = np.sqrt(np.nansum(self._noise_cube[:, shell_mask] ** 2, axis=(1)))
+        annulus_spectra = np.nansum(self._datacube[:, annulus_mask], axis=(1)) + 0
+        annulus_noise = (
+            np.sqrt(np.nansum(self._noise_cube[:, annulus_mask] ** 2, axis=(1))) + 0
+        )
 
         return (
             spectra,
             noise,
             aperture_spectra,
             aperture_noise,
-            shell_spectra,
-            shell_noise,
+            annulus_spectra,
+            annulus_noise,
         )
 
     def fit_wiggle_data_with_model_selection(
         self,
-        wiggle_data,
-        wiggle_noise=None,
+        x,
+        y,
+        aperture_radius=4,
+        annulus_outer_radius=0,
+        annulus_inner_radius=0,
         n_amplitude=10,
         n_frequency=1,
         min_n_amplitude=None,
@@ -1062,6 +1268,7 @@ class WiggleCleaner(object):
         sigma_clip_max_iterations=3,
         symmetric_sharpening=False,
         asymmetric_sharpening=False,
+        fit_full_model=False,
     ):
         """
         Fit the wiggle_data with selecting amplitude polynomial order based on BIC.
@@ -1114,12 +1321,19 @@ class WiggleCleaner(object):
         elif min_n_frequency < 2:
             raise ValueError("min_n_frequency must be at least 2")
 
+        wiggle_data, wiggle_noise = self.get_wiggle_data(
+            x, y, aperture_radius, annulus_outer_radius, annulus_inner_radius
+        )
+
         best_metric = None
         for k in tqdm(range(min_n_frequency, n_frequency + 1)):
             for i in range(min_n_amplitude, n_amplitude + 1):
                 result_params, cov_matrix = self.fit_wiggle_data(
-                    wiggle_data,
-                    wiggle_noise,
+                    x,
+                    y,
+                    aperture_radius=aperture_radius,
+                    annulus_outer_radius=annulus_outer_radius,
+                    annulus_inner_radius=annulus_inner_radius,
                     n_amplitude=i,
                     n_frequency=k,
                     specified_noise_level=specified_noise_level,
@@ -1136,6 +1350,7 @@ class WiggleCleaner(object):
                     sigma_clip_max_iterations=sigma_clip_max_iterations,
                     symmetric_sharpening=symmetric_sharpening,
                     asymmetric_sharpening=asymmetric_sharpening,
+                    fit_full_model=fit_full_model,
                 )
 
                 fit_metric = self.get_model_selection_metric(
@@ -1168,8 +1383,11 @@ class WiggleCleaner(object):
                     best_metric = fit_metric
 
         best_params, cov_matrix = self.fit_wiggle_data(
-            wiggle_data,
-            wiggle_noise,
+            x,
+            y,
+            aperture_radius=aperture_radius,
+            annulus_outer_radius=annulus_outer_radius,
+            annulus_inner_radius=annulus_inner_radius,
             n_amplitude=best_n_amplitude,
             n_frequency=best_n_frequency,
             specified_noise_level=specified_noise_level,
@@ -1304,7 +1522,7 @@ class WiggleCleaner(object):
         if verbose:
             print(f"Wiggle detection sigma: {sigma:.2f}")
             print(
-                f"Model variance: {model_variance:.4f}, residual variance: {residual_variance:.4f}"
+                f"Model variance: {model_variance:.4f}, residual variance: {residual_variance:.4f}, ratio: {model_variance / residual_variance:.4f}"
             )
 
         return (sigma > sigma_threshold) and (
@@ -1324,7 +1542,9 @@ class WiggleCleaner(object):
         specified_noise_level=0,
         cleaning_mask=None,
         init_peak_detection_proximity_threshold=200,
-        aperture_size=4,
+        aperture_radius=4,
+        annulus_outer_radius=0,
+        annulus_inner_radius=0,
         conserve_flux=True,
         include_scatter=True,
         outlier_rejection_method="fdr",
@@ -1340,6 +1560,7 @@ class WiggleCleaner(object):
         num_samples_uncertainty_region=1000,
         verbose=True,
         plot=False,
+        fit_full_model=False,
     ):
         """
         Clean the datacube.
@@ -1423,7 +1644,11 @@ class WiggleCleaner(object):
                         continue
 
                     wiggle_data, wiggle_noise = self.get_wiggle_data(
-                        i, j, aperture_size=aperture_size
+                        i,
+                        j,
+                        aperture_radius=aperture_radius,
+                        annulus_inner_radius=annulus_inner_radius,
+                        annulus_outer_radius=annulus_outer_radius,
                     )
 
                     if n_amplitude_for_detection is None:
@@ -1436,8 +1661,11 @@ class WiggleCleaner(object):
                         print(f"Fitting spaxel: {i}, {j}")
 
                     result_params, cov_matrix = self.fit_wiggle_data(
-                        wiggle_data,
-                        wiggle_noise,
+                        i,
+                        j,
+                        aperture_radius=aperture_radius,
+                        annulus_outer_radius=annulus_outer_radius,
+                        annulus_inner_radius=annulus_inner_radius,
                         n_amplitude=n_amplitude_for_detection,
                         n_frequency=n_frequency_for_detection,
                         specified_noise_level=specified_noise_level,
@@ -1454,7 +1682,10 @@ class WiggleCleaner(object):
                         symmetric_sharpening=symmetric_sharpening,
                         asymmetric_sharpening=asymmetric_sharpening,
                         plot=plot,
+                        fit_full_model=fit_full_model,
                     )
+
+                    plt.show()
 
                     if self.is_wiggle_detected(
                         wiggle_data,
@@ -1492,6 +1723,7 @@ class WiggleCleaner(object):
                                     symmetric_sharpening=symmetric_sharpening,
                                     asymmetric_sharpening=asymmetric_sharpening,
                                     plot=False,
+                                    fit_full_model=fit_full_model,
                                 )
                         else:
                             result_params, cov_matrix = (
@@ -1515,6 +1747,7 @@ class WiggleCleaner(object):
                                     symmetric_sharpening=symmetric_sharpening,
                                     asymmetric_sharpening=asymmetric_sharpening,
                                     plot=False,
+                                    fit_full_model=fit_full_model,
                                 )
                             )
 
@@ -1561,6 +1794,21 @@ class WiggleCleaner(object):
                             )
                             * self.cleaned_datacube[:, i, j]
                         )
+                        # plt.plot(
+                        #     self._wavelengths,
+                        #     self._datacube[:, i, j],
+                        #     label="Original",
+                        #     color="red",
+                        # )
+                        # plt.plot(
+                        #     self._wavelengths,
+                        #     self.cleaned_datacube[:, i, j],
+                        #     label="Cleaned",
+                        #     color="k",
+                        #     ls="--",
+                        # )
+                        # plt.xlim(10500, 11600)
+                        # plt.show()
                     else:
                         if verbose:
                             print(
