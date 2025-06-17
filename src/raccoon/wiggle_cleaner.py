@@ -1141,12 +1141,6 @@ class WiggleCleaner(object):
 
             return A @ coefficients, coefficients
 
-        variance_fraction = (
-            (noise / spectra) ** 2
-            + (aperture_noise / aperture_spectra) ** 2
-            + (annulus_noise / annulus_spectra) ** 2
-        )
-
         def residual_vector(a):
             model_spectra, _ = model(a)
             return (model_spectra - spectra) / noise
