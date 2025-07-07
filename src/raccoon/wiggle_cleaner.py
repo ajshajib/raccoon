@@ -4,7 +4,6 @@ import numpy as np
 from copy import deepcopy
 import matplotlib.pyplot as plt
 from scipy.optimize import least_squares
-from scipy.optimize import minimize_scalar
 from scipy.special import huber
 from scipy.linalg import lstsq
 from astropy.stats import sigma_clip
@@ -29,6 +28,8 @@ class WiggleCleaner(object):
         datacube,
         noise_cube,
         gaps=None,
+        symmetric_sharpening=False,
+        asymmetric_sharpening=False,
         continuum_diff_polynomial_order=2,
     ):
         """
@@ -42,6 +43,10 @@ class WiggleCleaner(object):
         :type noise_cube: np.ndarray
         :param gaps: Gaps
         :type gaps: list
+        :param symmetric_sharpening: If True, apply symmetric sharpening
+        :type symmetric_sharpening: bool
+        :param asymmetric_sharpening: If True, apply asymmetric sharpening
+        :type asymmetric_sharpening: bool
         :param continuum_diff_polynomial_order: Continuum polynomial order for the difference between the single spaxel and aperture spectra
         :type continuum_diff_polynomial_order: int
         :return: None
@@ -55,8 +60,8 @@ class WiggleCleaner(object):
         self._n_frequency = -1
         self._continuum_diff_polynomial_order = continuum_diff_polynomial_order
 
-        self._symmetric_sharpening = False
-        self._asymmetric_sharpening = False
+        self._symmetric_sharpening = symmetric_sharpening
+        self._asymmetric_sharpening = asymmetric_sharpening
 
         self._amplitude_spline = None
         self._frequency_spline = None
@@ -659,20 +664,20 @@ class WiggleCleaner(object):
         elif self._symmetric_sharpening or self._asymmetric_sharpening:
             x0 = np.concatenate([x0, np.array([0])])
 
+        is_turn_off_huber_loss = False
+        if outlier_rejection_method == "fdr":
+            if not self._use_huber_loss:
+                is_turn_off_huber_loss = True
+
+            self._use_huber_loss = True
+
+        # initial "robust" regression (using Huber loss)
+        result = least_squares(
+            self.get_residual_func(wiggle_data, wiggle_noise),
+            x0,
+        )
+
         if self._outlier_rejection_method is not None:
-            is_turn_off_huber_loss = False
-            if outlier_rejection_method == "fdr":
-                if not self._use_huber_loss:
-                    is_turn_off_huber_loss = True
-
-                self._use_huber_loss = True
-
-            # initial "robust" regression (using Huber loss)
-            result = least_squares(
-                self.get_residual_func(wiggle_data, wiggle_noise),
-                x0,
-            )
-
             residual = self.residual_vector(result.x, wiggle_data, wiggle_noise)
 
             clipped_pixels = self.reject_outliers(
@@ -689,10 +694,10 @@ class WiggleCleaner(object):
             if is_turn_off_huber_loss:
                 self._use_huber_loss = False
 
-        result = least_squares(
-            self.get_residual_func(wiggle_data, wiggle_noise),
-            result.x,
-        )
+            result = least_squares(
+                self.get_residual_func(wiggle_data, wiggle_noise),
+                result.x,
+            )
 
         # for i in range(sigma_clip_iterations):
         #     residual = np.abs(self.residual_vector(result.x, wiggle_data, noise))
@@ -1125,19 +1130,26 @@ class WiggleCleaner(object):
 
             if annulus_outer_radius > 0:
                 # Add the annulus spectra to the design matrix
-                A = np.column_stack(
-                    [
-                        aperture_spectra,
-                        annulus_spectra,
-                        self.scale_wavelengths_to_0_1(self._wavelengths) ** a,
-                        wavelengths**2,
-                        wavelengths,
-                        np.ones_like(wavelengths),
-                    ]
-                )
+                A = np.column_stack([A, annulus_spectra])
 
-            # Solve the linear least squares problem
-            coefficients, _, _, _ = lstsq(A, spectra)
+            # # Solve the linear least squares problem
+            # coefficients, _, _, _ = lstsq(A, spectra)
+
+            # Normalize columns to unit length
+            norms = np.linalg.norm(A, axis=0)
+            norms[norms == 0] = 1.0  # Avoid division by zero
+            A_normalized = A / norms
+
+            # Solve with Ridge Regression (Tikhonov regularization)
+            alpha = 1e-10  # Small regularization strength
+            B = np.vstack(
+                [A_normalized, np.sqrt(alpha) * np.eye(A_normalized.shape[1])]
+            )
+            target_extended = np.concatenate([spectra, np.zeros(A_normalized.shape[1])])
+            coef_normalized, _, _, _ = lstsq(B, target_extended)
+
+            # Rescale coefficients to original units
+            coefficients = coef_normalized / norms
 
             return A @ coefficients, coefficients
 
@@ -1551,6 +1563,8 @@ class WiggleCleaner(object):
         extract_uncertainty=True,
         symmetric_sharpening=False,
         asymmetric_sharpening=False,
+        selection_criteria="bic",
+        min_selection_difference=None,
         num_samples_uncertainty_region=1000,
         verbose=True,
         plot=False,
@@ -1609,6 +1623,10 @@ class WiggleCleaner(object):
         :type symmetric_sharpening: bool
         :param asymmetric_sharpening: If True, use asymmetric sharpening
         :type asymmetric_sharpening: bool
+        :param selection_criteria: Selection criteria for model selection, "bic" or "chi2"
+        :type selection_criteria: str
+        :param min_selection_difference: Minimum difference between the best and the next best model selection criteria
+        :type min_selection_difference: float
         :param verbose: If True, print the results
         :type verbose: bool
         :param plot: If True, plot the results
@@ -1721,7 +1739,7 @@ class WiggleCleaner(object):
                                 )
                         else:
                             result_params, cov_matrix = (
-                                self.fit_wiggle_data_with_best_bic(
+                                self.fit_wiggle_data_with_model_selection(
                                     wiggle_data,
                                     wiggle_noise,
                                     n_amplitude=n_amplitude,
@@ -1733,6 +1751,7 @@ class WiggleCleaner(object):
                                     include_scatter=include_scatter,
                                     outlier_rejection_method=outlier_rejection_method,
                                     use_huber_loss=use_huber_loss,
+                                    huber_delta=huber_delta,
                                     fdr_alpha=fdr_alpha,
                                     fdr_outlier_max_fraction=fdr_outlier_max_fraction,
                                     extract_covariance=extract_uncertainty,
@@ -1742,6 +1761,8 @@ class WiggleCleaner(object):
                                     asymmetric_sharpening=asymmetric_sharpening,
                                     plot=False,
                                     fit_full_model=fit_full_model,
+                                    selection_criteria=selection_criteria,
+                                    min_selection_difference=min_selection_difference,
                                 )
                             )
 
