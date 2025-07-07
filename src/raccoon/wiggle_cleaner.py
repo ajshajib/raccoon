@@ -1132,9 +1132,6 @@ class WiggleCleaner(object):
                 # Add the annulus spectra to the design matrix
                 A = np.column_stack([A, annulus_spectra])
 
-            # # Solve the linear least squares problem
-            # coefficients, _, _, _ = lstsq(A, spectra)
-
             # Normalize columns to unit length
             norms = np.linalg.norm(A, axis=0)
             norms[norms == 0] = 1.0  # Avoid division by zero
