@@ -32,14 +32,14 @@ class WiggleCleaner(object):
         asymmetric_sharpening=False,
         continuum_diff_polynomial_order=2,
     ):
-        """
-        Initialize the WiggleCleaner object.
+        """Initialize the WiggleCleaner object.
 
         :param wavelengths: Wavelengths
         :type wavelengths: list or np.ndarray
         :param datacube: 3D data cube containing the spectral data
         :type datacube: np.ndarray
-        :param noise_cube: 3D data cube containing the noise associated with the spectral data
+        :param noise_cube: 3D data cube containing the noise associated with the
+            spectral data
         :type noise_cube: np.ndarray
         :param gaps: Gaps
         :type gaps: list
@@ -47,7 +47,8 @@ class WiggleCleaner(object):
         :type symmetric_sharpening: bool
         :param asymmetric_sharpening: If True, apply asymmetric sharpening
         :type asymmetric_sharpening: bool
-        :param continuum_diff_polynomial_order: Continuum polynomial order for the difference between the single spaxel and aperture spectra
+        :param continuum_diff_polynomial_order: Continuum polynomial order for the
+            difference between the single spaxel and aperture spectra
         :type continuum_diff_polynomial_order: int
         :return: None
         :rtype: None
@@ -81,8 +82,7 @@ class WiggleCleaner(object):
         self._outlier_mask = np.ones_like(self._wavelengths)
 
     def set_gaps(self, gaps):
-        """
-        Set the gaps to be ignored during the fitting process.
+        """Set the gaps to be ignored during the fitting process.
 
         :param gaps: List of wavelength ranges to be ignored
         :type gaps: list of tuples
@@ -98,8 +98,7 @@ class WiggleCleaner(object):
 
     @property
     def symmetric_sharpening(self):
-        """
-        Get the symmetric sharpening flag.
+        """Get the symmetric sharpening flag.
 
         :return: Symmetric sharpening flag
         :rtype: bool
@@ -108,8 +107,7 @@ class WiggleCleaner(object):
 
     @symmetric_sharpening.setter
     def symmetric_sharpening(self, value):
-        """
-        Set the symmetric sharpening flag.
+        """Set the symmetric sharpening flag.
 
         :param value: Symmetric sharpening flag
         :type value: bool
@@ -120,8 +118,7 @@ class WiggleCleaner(object):
 
     @property
     def asymmetric_sharpening(self):
-        """
-        Get the asymmetric sharpening flag.
+        """Get the asymmetric sharpening flag.
 
         :return: Asymmetric sharpening flag
         :rtype: bool
@@ -130,8 +127,7 @@ class WiggleCleaner(object):
 
     @asymmetric_sharpening.setter
     def asymmetric_sharpening(self, value):
-        """
-        Set the asymmetric sharpening flag.
+        """Set the asymmetric sharpening flag.
 
         :param value: Asymmetric sharpening flag
         :type value: bool
@@ -142,8 +138,7 @@ class WiggleCleaner(object):
 
     @property
     def scaled_w(self):
-        """
-        Scaled wavelengths
+        """Scaled wavelengths.
 
         :return: Scaled wavelengths
         :rtype: np.ndarray
@@ -151,8 +146,7 @@ class WiggleCleaner(object):
         return self.scale_wavelengths_negative1_to_1(self._wavelengths)
 
     def wiggle_func(self, xs, amplitude_params, frequency_params, phi, k_1=0, k_2=0):
-        """
-        Get the wiggle function.
+        """Get the wiggle function.
 
         :param xs: Scaled wavelengths
         :type xs: np.ndarray
@@ -183,8 +177,7 @@ class WiggleCleaner(object):
         return 1.0 + amplitude * wave_function
 
     def scale_wavelengths_negative1_to_1(self, w):
-        """
-        Scale the wavelengths to -1 to 1.
+        """Scale the wavelengths to -1 to 1.
 
         :param w: Wavelengths
         :type w: np.ndarray
@@ -196,8 +189,7 @@ class WiggleCleaner(object):
         ) * 2 - 1
 
     def scale_wavelengths_to_0_1(self, w):
-        """
-        Scale the wavelengths to 0 to 1.
+        """Scale the wavelengths to 0 to 1.
 
         :param w: Wavelengths
         :type w: np.ndarray
@@ -209,8 +201,7 @@ class WiggleCleaner(object):
         )
 
     def wiggle_model(self, params):
-        """
-        Get the wiggle model given the parameters.
+        """Get the wiggle model given the parameters.
 
         :param params: Parameters
         :type params: np.ndarray
@@ -247,8 +238,7 @@ class WiggleCleaner(object):
         return wiggle_model
 
     def split_params(self, params, n_amplitude=None, n_frequency=None):
-        """
-        Split the parameters. Opposite of the set_params function.
+        """Split the parameters. Opposite of the set_params function.
 
         :param params: Parameters
         :type params: np.ndarray
@@ -277,8 +267,7 @@ class WiggleCleaner(object):
         n_amplitude=None,
         n_frequency=None,
     ):
-        """
-        Set the parameters. Opposite function of the split_params function.
+        """Set the parameters. Opposite function of the split_params function.
 
         :param amplitude_params: Amplitude parameters
         :type amplitude_params: np.ndarray
@@ -303,8 +292,7 @@ class WiggleCleaner(object):
         return params
 
     def configure_polynomial_ns(self, n_amplitude=None, n_frequency=None):
-        """
-        Configure the number of parameters.
+        """Configure the number of parameters.
 
         :param n_amplitude: Number of amplitude parameters
         :type n_amplitude: int
@@ -338,7 +326,7 @@ class WiggleCleaner(object):
         annulus_outer_radius=0,
         annulus_inner_radius=0,
     ):
-        """ """
+        """"""
         (
             spectra,
             noise,
@@ -408,7 +396,7 @@ class WiggleCleaner(object):
         annulus_outer_radius=0,
         annulus_inner_radius=0,
     ):
-        """ """
+        """"""
         full_model, spectra, total_noise = self.model_full_fit(
             params,
             x,
@@ -420,8 +408,7 @@ class WiggleCleaner(object):
         return (full_model - spectra) / total_noise
 
     def residual_vector(self, params, wiggle_data, wiggle_noise):
-        """ "
-        Get the residual vector.
+        """ " Get the residual vector.
 
         :param params: Parameters
         :type params: np.ndarray
@@ -460,8 +447,7 @@ class WiggleCleaner(object):
         return residual
 
     def cost_function(self, params, wiggle_data, wiggle_noise):
-        """
-        Get the cost.
+        """Get the cost.
 
         :param params: Parameters
         :type params: np.ndarray
@@ -478,8 +464,7 @@ class WiggleCleaner(object):
         return cost
 
     def get_residual_func(self, wiggle_data, wiggle_noise):
-        """
-        Get the residual function.
+        """Get the residual function.
 
         :param wiggle_data: wiggle data
         :type wiggle_data: np.ndarray
@@ -495,8 +480,7 @@ class WiggleCleaner(object):
         return residual_func
 
     def get_residual_func_phase_only(self, init_params, wiggle_data, wiggle_noise):
-        """
-        Get the residual function with phase only.
+        """Get the residual function with phase only.
 
         :param params: Parameters
         :type params: np.ndarray
@@ -548,8 +532,7 @@ class WiggleCleaner(object):
         verbose=False,
         fit_full_model=False,
     ):
-        """
-        Fit the wiggle data.
+        """Fit the wiggle data.
 
         :param wiggle_data: Wiggle data
         :type wiggle_data: np.ndarray
@@ -559,9 +542,11 @@ class WiggleCleaner(object):
         :type n_amplitude: int
         :param n_frequency: Number of frequency parameters
         :type n_frequency: int
-        :param specified_noise_level: User-defined noise level to be used instead of the actual noise. Set to 0 to disable.
+        :param specified_noise_level: User-defined noise level to be used instead of the
+            actual noise. Set to 0 to disable.
         :type specified_noise_level: float
-        :param init_peak_detection_proximity_threshold: Proximity lower limit in Angstrom for initial identifaction of peaks and troughs
+        :param init_peak_detection_proximity_threshold: Proximity lower limit in
+            Angstrom for initial identifaction of peaks and troughs
         :type init_peak_detection_proximity_threshold: float
         :param plot: If True, plot the results
         :type plot: bool
@@ -569,15 +554,18 @@ class WiggleCleaner(object):
         :type verbose: bool
         :param do_interim_fit_phase_only: If True, do an interim fit with phase only
         :type do_interim_fit_phase_only: bool
-        :param outlier_rejection_method: Outlier rejection method, "fdr" or "sigma_clip", set None to disable
+        :param outlier_rejection_method: Outlier rejection method, "fdr" or
+            "sigma_clip", set None to disable
         :type outlier_rejection_method: str
         :param use_huber_loss: If True, use Huber loss function
         :type use_huber_loss: bool
         :param huber_delta: Delta for Huber loss function
         :type huber_delta: float
-        :param fdr_alpha: False discovery rate (FDR) correction threshold, smaller value will reject less outliers
+        :param fdr_alpha: False discovery rate (FDR) correction threshold, smaller value
+            will reject less outliers
         :type fdr_alpha: float
-        :param fdr_outlier_max_fraction: Maximum fraction of outliers to reject using FDR
+        :param fdr_outlier_max_fraction: Maximum fraction of outliers to reject using
+            FDR
         :type fdr_outlier_max_fraction: float
         :param sigma_clip_sigma: Sigma threshold for sigma clipping
         :type sigma_clip_sigma: float
@@ -842,8 +830,7 @@ class WiggleCleaner(object):
         sigma_clip_sigma=5,
         sigma_clip_max_iterations=5,
     ):
-        """
-        Reject outliers using the selected method.
+        """Reject outliers using the selected method.
 
         :param residual: Residuals
         :type residual: np.ndarray
@@ -857,7 +844,8 @@ class WiggleCleaner(object):
         :type huber_delta: float
         :param sigma: Sigma threshold for sigma clipping
         :type sigma: float
-        :param sigma_clip_max_iterations: Maximum number of iterations for sigma clipping
+        :param sigma_clip_max_iterations: Maximum number of iterations for sigma
+            clipping
         :type sigma_clip_max_iterations: int
         :return: Indices of outliers
         :rtype: np.ndarray
@@ -897,14 +885,14 @@ class WiggleCleaner(object):
         return outlier_mask
 
     def configure_noise(self, wiggle_data, wiggle_noise, specified_noise_level):
-        """
-        Configure the noise.
+        """Configure the noise.
 
         :param wiggle_data: wiggle_data
         :type wiggle_data: np.ndarray
         :param wiggle_noise: wiggle noise
         :type wiggle_noise: np.ndarray
-        :param specified_noise_level: User-defined noise level to be used instead of the actual noise. Set to 0 to disable.
+        :param specified_noise_level: User-defined noise level to be used instead of the
+            actual noise. Set to 0 to disable.
         :type specified_noise_level: float
         :return: modified wiggle noise
         :rtype: np.ndarray
@@ -925,8 +913,7 @@ class WiggleCleaner(object):
         cov_matrix=None,
         num_samples_uncertainty_region=1000,
     ):
-        """
-        Plot the model.
+        """Plot the model.
 
         :param wiggle_data: wiggle_data
         :type wiggle_data: np.ndarray
@@ -1044,8 +1031,7 @@ class WiggleCleaner(object):
     def get_model_uncertainty(
         self, result_params, cov_matrix, num_samples_uncertainty_region=1000
     ):
-        """
-        Get the model uncertainty.
+        """Get the model uncertainty.
 
         :param result_params: Fitted parameters
         :type result_params: np.ndarray
@@ -1077,8 +1063,7 @@ class WiggleCleaner(object):
         annulus_outer_radius=0,
         annulus_inner_radius=0,
     ):
-        """
-        Get the modulation wiggle_data.
+        """Get the modulation wiggle_data.
 
         :param spaxel_x: Spaxel x
         :type spaxel_x: int
@@ -1195,8 +1180,7 @@ class WiggleCleaner(object):
     def get_spectra_set(
         self, x, y, aperture_radius, annulus_outer_radius, annulus_inner_radius
     ):
-        """
-        Get the spectra set.
+        """Get the spectra set.
 
         :param x: x coordinate
         :type x: int
@@ -1208,7 +1192,8 @@ class WiggleCleaner(object):
         :type annulus_outer_radius: int
         :param annulus_inner_radius: annulus inner radius
         :type annulus_inner_radius: int
-        :return: spectra, noise, aperture_spectra, aperture_noise, annulus_spectra, annulus_noise
+        :return: spectra, noise, aperture_spectra, aperture_noise, annulus_spectra,
+            annulus_noise
         :rtype: Tuple of np.ndarray
         """
         spectra = deepcopy(self._datacube[:, x, y])
@@ -1273,8 +1258,7 @@ class WiggleCleaner(object):
         asymmetric_sharpening=False,
         fit_full_model=False,
     ):
-        """
-        Fit the wiggle_data with selecting amplitude polynomial order based on BIC.
+        """Fit the wiggle_data with selecting amplitude polynomial order based on BIC.
 
         :param wiggle_data: wiggle_data
         :type wiggle_data: np.ndarray
@@ -1290,7 +1274,8 @@ class WiggleCleaner(object):
         :type min_n_frequency: int
         :param specified_noise_level: Artificial noise level
         :type specified_noise_level: float
-        :param init_peak_detection_proximity_threshold: Proximity lower limit in Angstrom for initial identifaction of peaks and troughs
+        :param init_peak_detection_proximity_threshold: Proximity lower limit in
+            Angstrom for initial identifaction of peaks and troughs
         :type init_peak_detection_proximity_threshold: float
         :param plot: If True, plot the results
         :type plot: bool
@@ -1300,11 +1285,13 @@ class WiggleCleaner(object):
         :type sigma_clip: float
         :param sigma_clip_max_iterations: Number of sigma clip iterations
         :type sigma_clip_max_iterations: int
-        :param combine_bic_weighted: If True, combine the BIC weighted by the number of parameters
+        :param combine_bic_weighted: If True, combine the BIC weighted by the number of
+            parameters
         :type combine_bic_weighted: bool
         :param extract_uncertainty: If True, extract the uncertainties
         :type extract_uncertainty: bool
-        :param outlier_rejection_method: Outlier rejection method, "fdr" or "sigma_clip", set None to disable
+        :param outlier_rejection_method: Outlier rejection method, "fdr" or
+            "sigma_clip", set None to disable
         :type outlier_rejection_method: str
         :param huber_delta: Delta for Huber loss function
         :type huber_delta: float
@@ -1463,8 +1450,7 @@ class WiggleCleaner(object):
         variance_ratio_threshold=0.8,
         verbose=True,
     ):
-        """
-        Check if wiggle is detected.
+        """Check if wiggle is detected.
 
         :param wiggle_data: wiggle_data
         :type wiggle_data: np.ndarray
@@ -1567,8 +1553,7 @@ class WiggleCleaner(object):
         plot=False,
         fit_full_model=False,
     ):
-        """
-        Clean the datacube.
+        """Clean the datacube.
 
         :param sigma_threshold: Sigma threshold
         :type sigma_threshold: float
