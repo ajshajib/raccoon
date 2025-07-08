@@ -3,7 +3,6 @@ __author__ = "ajshajib"
 import numpy as np
 from scipy.signal import savgol_filter
 from scipy.interpolate import make_lsq_spline
-from copy import deepcopy
 import matplotlib.pyplot as plt
 from numpy.polynomial.chebyshev import chebfit
 from numpy.polynomial.chebyshev import chebval

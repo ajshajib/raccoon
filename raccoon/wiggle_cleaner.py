@@ -928,10 +928,10 @@ class WiggleCleaner(object):
         :return: None
         :rtype: None
         """
-        red = "#e41a1c"
+        # red = "#e41a1c"
         blue = "#377eb8"
-        green = "#4daf4a"
-        purple = "#984ea3"
+        # green = "#4daf4a"
+        # purple = "#984ea3"
         orange = "#ff7f00"
         grey = "#999999"
 
@@ -985,7 +985,7 @@ class WiggleCleaner(object):
         ax.plot(
             self._wavelengths,
             model,
-            label=f"Model",  # n_param({len(result_params)})",
+            label="Model",  # n_param({len(result_params)})",
             lw=1,
             c=line_color,
         )
