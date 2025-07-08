@@ -963,23 +963,6 @@ class WiggleCleaner(object):
 
         model = self.wiggle_model(result_params)
 
-        # line_color = np.random.choice(
-        #     [
-        #         "#e41a1c",
-        #         "#377eb8",
-        #         "#4daf4a",
-        #         "#984ea3",
-        #         "#ff7f00",
-        #         "#ffff33",
-        #         "#a65628",
-        #         "#f781bf",
-        #         "#999999",
-        #         "#66c2a5",
-        #         "#fc8d62",
-        #         "#8da0cb",
-        #     ]
-        # )
-
         line_color = orange
 
         ax.plot(
@@ -1005,15 +988,6 @@ class WiggleCleaner(object):
 
         for g in self._gaps:
             ax.axvspan(g[0], g[1], color="black", alpha=0.1)
-
-        # if x0 is not None:
-        #     plt.plot(
-        #         self._wavelengths,
-        #         self.model(x0),
-        #         ls=":",
-        #         label="Init",
-        #         c=red,
-        #     )
 
         ax.set_xlabel(r"Wavelengths")
         ax.set_ylabel("Wiggle model")
@@ -1087,7 +1061,7 @@ class WiggleCleaner(object):
 
         wavelengths = self.scale_wavelengths_negative1_to_1(self._wavelengths)
 
-        # fit c_1 * aperture_spectra + c_3 * wavelengths**a + (c_4 * wavelengths**2 + c_5 * wavelengths + c_6)
+        # fit c_1 * aperture_spectra + c_3 * wavelengths**a + \sum_i c_i * wavelengths**i + c_N * annulus_spectra
         # given non-linear parameter a, treat all c_1 parameters as linear parameters and derive them using linear inversion
 
         def model(a):
@@ -1158,24 +1132,27 @@ class WiggleCleaner(object):
 
         best_model, _ = model(result.x)
 
-        model_noise = aperture_noise / aperture_spectra * best_model
+        model_noise_fraction = (aperture_noise / aperture_spectra) ** 2
+        if annulus_outer_radius > 0:
+            model_noise_fraction += (annulus_noise / annulus_spectra) ** 2
+        model_noise = best_model * np.sqrt(model_noise_fraction)
 
-        wiggle_data = spectra / best_model
-        wiggle_data_noise = (
+        wiggle_signal = spectra / best_model
+        wiggle_noise = (
             np.sqrt((noise / spectra) ** 2 + (model_noise / best_model) ** 2)
-            * wiggle_data
+            * wiggle_signal
         )
 
         # replace non-positive noise with minimum non-negative value
-        min_positive_noise = np.nanmin(wiggle_data_noise[wiggle_data_noise > 0])
-        wiggle_data_noise[wiggle_data_noise <= 0] = min_positive_noise
+        min_positive_noise = np.nanmin(wiggle_noise[wiggle_noise > 0])
+        wiggle_noise[wiggle_noise <= 0] = min_positive_noise
 
         # # normalize the wiggle_data
         # median = np.nanmedian(wiggle_data)
         # wiggle_data /= median
         # wiggle_data_noise /= median
 
-        return wiggle_data, wiggle_data_noise
+        return wiggle_signal, wiggle_noise
 
     def get_spectra_set(
         self, x, y, aperture_radius, annulus_outer_radius, annulus_inner_radius
@@ -1229,7 +1206,7 @@ class WiggleCleaner(object):
             annulus_noise,
         )
 
-    def fit_wiggle_data_with_model_selection(
+    def fit_wiggle_with_model_selection(
         self,
         x,
         y,
@@ -1258,12 +1235,18 @@ class WiggleCleaner(object):
         asymmetric_sharpening=False,
         fit_full_model=False,
     ):
-        """Fit the wiggle_data with selecting amplitude polynomial order based on BIC.
+        """Fit the wiggle signal with selecting amplitude polynomial order based on BIC.
 
-        :param wiggle_data: wiggle_data
-        :type wiggle_data: np.ndarray
-        :param noise: Noise
-        :type noise: np.ndarray
+        :param x: x coordinate
+        :type x: int
+        :param y: y coordinate
+        :type y: int
+        :param aperture_radius: Aperture radius
+        :type aperture_radius: int
+        :param annulus_outer_radius: Annulus outer radius
+        :type annulus_outer_radius: int
+        :param annulus_inner_radius: Annulus inner radius
+        :type annulus_inner_radius: int
         :param n_amplitude: Maximum number of amplitude parameters
         :type n_amplitude: int
         :param n_frequency: Number of frequency parameters
@@ -1721,7 +1704,7 @@ class WiggleCleaner(object):
                                 )
                         else:
                             result_params, cov_matrix = (
-                                self.fit_wiggle_data_with_model_selection(
+                                self.fit_wiggle_with_model_selection(
                                     wiggle_data,
                                     wiggle_noise,
                                     n_amplitude=n_amplitude,
