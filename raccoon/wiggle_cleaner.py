@@ -407,13 +407,13 @@ class WiggleCleaner(object):
         )
         return (full_model - spectra) / total_noise
 
-    def residual_vector(self, params, wiggle_data, wiggle_noise):
+    def residual_vector(self, params, wiggle_signal, wiggle_noise):
         """ " Get the residual vector.
 
         :param params: Parameters
         :type params: np.ndarray
-        :param wiggle_data: wiggle_data
-        :type wiggle_data: np.ndarray
+        :param wiggle_signal: wiggle_signal
+        :type wiggle_signal: np.ndarray
         :param wiggle_noise: wiggle_noise
         :type wiggle_noise: np.ndarray
         :return: Residual vector
@@ -428,7 +428,7 @@ class WiggleCleaner(object):
         else:
             total_noise = wiggle_noise
 
-        residual = (model - wiggle_data) / total_noise
+        residual = (model - wiggle_signal) / total_noise
         residual = residual * self._gap_mask * self._outlier_mask
 
         if self._use_huber_loss:
@@ -446,28 +446,28 @@ class WiggleCleaner(object):
 
         return residual
 
-    def cost_function(self, params, wiggle_data, wiggle_noise):
+    def cost_function(self, params, wiggle_signal, wiggle_noise):
         """Get the cost.
 
         :param params: Parameters
         :type params: np.ndarray
-        :param wiggle_data: wiggle data
-        :type wiggle_data: np.ndarray
+        :param wiggle_signal: wiggle data
+        :type wiggle_signal: np.ndarray
         :param wiggle_noise: wiggle_noise
         :type wiggle_noise: np.ndarray
         :return: cost
         :rtype: float
         """
-        residual = self.residual_vector(params, wiggle_data, wiggle_noise)
+        residual = self.residual_vector(params, wiggle_signal, wiggle_noise)
         cost = np.sum(residual**2)
 
         return cost
 
-    def get_residual_func(self, wiggle_data, wiggle_noise):
+    def get_residual_func(self, wiggle_signal, wiggle_noise):
         """Get the residual function.
 
-        :param wiggle_data: wiggle data
-        :type wiggle_data: np.ndarray
+        :param wiggle_signal: wiggle data
+        :type wiggle_signal: np.ndarray
         :param wiggle_noise: wiggle noise
         :type wiggle_noise: np.ndarray
         :return: Residual function
@@ -475,19 +475,19 @@ class WiggleCleaner(object):
         """
 
         def residual_func(params):
-            return self.residual_vector(params, wiggle_data, wiggle_noise)
+            return self.residual_vector(params, wiggle_signal, wiggle_noise)
 
         return residual_func
 
-    def get_residual_func_phase_only(self, init_params, wiggle_data, wiggle_noise):
+    def get_residual_func_phase_only(self, init_params, wiggle_signal, wiggle_noise):
         """Get the residual function with phase only.
 
         :param params: Parameters
         :type params: np.ndarray
         :param init_params: Initial parameters
         :type init_params: np.ndarray
-        :param wiggle_data: wiggle_data
-        :type wiggle_data: np.ndarray
+        :param wiggle_signal: wiggle_signal
+        :type wiggle_signal: np.ndarray
         :param wiggle_noise: wiggle noise
         :type wiggle_noise: np.ndarray
         :return: Residual function
@@ -501,11 +501,11 @@ class WiggleCleaner(object):
                 params[:-1],
                 params[-1],
             )
-            return self.residual_vector(new_params, wiggle_data, wiggle_noise)
+            return self.residual_vector(new_params, wiggle_signal, wiggle_noise)
 
         return residual_func
 
-    def fit_wiggle_data(
+    def fit_wiggle(
         self,
         x,
         y,
@@ -534,8 +534,8 @@ class WiggleCleaner(object):
     ):
         """Fit the wiggle data.
 
-        :param wiggle_data: Wiggle data
-        :type wiggle_data: np.ndarray
+        :param wiggle_signal: Wiggle data
+        :type wiggle_signal: np.ndarray
         :param wiggle_noise: wiggle noise
         :type wiggle_noise: np.ndarray
         :param n_amplitude: Number of amplitude parameters
@@ -580,7 +580,7 @@ class WiggleCleaner(object):
             fdr_outlier_max_fraction < 1
         ), "fdr_outlier_max_fraction must be less than 1"
 
-        wiggle_data, wiggle_noise = self.get_wiggle_data(
+        wiggle_signal, wiggle_noise = self.get_wiggle_signal(
             x, y, aperture_radius, annulus_outer_radius, annulus_inner_radius
         )
 
@@ -598,11 +598,11 @@ class WiggleCleaner(object):
         )
 
         wiggle_noise = self.configure_noise(
-            wiggle_data, wiggle_noise, specified_noise_level
+            wiggle_signal, wiggle_noise, specified_noise_level
         )
 
         amplitude_spline, frequency_spline, init_phi_0 = Util.get_init_params_spline(
-            wiggle_data,
+            wiggle_signal,
             self.scaled_w,
             n_amplitude=n_amplitude,
             n_frequency=n_frequency,
@@ -616,7 +616,7 @@ class WiggleCleaner(object):
         self._frequency_spline = deepcopy(frequency_spline)
         init_frequency_params = deepcopy(frequency_spline.c)
 
-        wiggle_data = np.array(wiggle_data)
+        wiggle_signal = np.array(wiggle_signal)
         wiggle_noise = np.array(wiggle_noise)
 
         x0 = self.set_params(
@@ -629,7 +629,7 @@ class WiggleCleaner(object):
 
         if do_interim_fit_phase_only:
             result = least_squares(
-                self.get_residual_func_phase_only(x0, wiggle_data, wiggle_noise),
+                self.get_residual_func_phase_only(x0, wiggle_signal, wiggle_noise),
                 np.concatenate([init_frequency_params, x0]),
             )
             interim_frquency_params = result.x[:-1]
@@ -661,12 +661,12 @@ class WiggleCleaner(object):
 
         # initial "robust" regression (using Huber loss)
         result = least_squares(
-            self.get_residual_func(wiggle_data, wiggle_noise),
+            self.get_residual_func(wiggle_signal, wiggle_noise),
             x0,
         )
 
         if self._outlier_rejection_method is not None:
-            residual = self.residual_vector(result.x, wiggle_data, wiggle_noise)
+            residual = self.residual_vector(result.x, wiggle_signal, wiggle_noise)
 
             clipped_pixels = self.reject_outliers(
                 residual,
@@ -683,12 +683,12 @@ class WiggleCleaner(object):
                 self._use_huber_loss = False
 
             result = least_squares(
-                self.get_residual_func(wiggle_data, wiggle_noise),
+                self.get_residual_func(wiggle_signal, wiggle_noise),
                 result.x,
             )
 
         # for i in range(sigma_clip_iterations):
-        #     residual = np.abs(self.residual_vector(result.x, wiggle_data, noise))
+        #     residual = np.abs(self.residual_vector(result.x, wiggle_signal, noise))
         #     # Keep the top sigma_clip_fraction fraction of the residuals
         #     residuals = residual[residual > sigma_clip]
         #     if len(residuals) == 0:
@@ -698,7 +698,7 @@ class WiggleCleaner(object):
         #     self._outlier_mask[clipped_pixels] = 0
 
         #     result = least_squares(
-        #         self.get_residual_func(wiggle_data, noise),
+        #         self.get_residual_func(wiggle_signal, noise),
         #         result.x,
         #     )
 
@@ -793,7 +793,7 @@ class WiggleCleaner(object):
 
         if verbose:
             print(
-                "Cost: ", self.cost_function(result_params, wiggle_data, wiggle_noise)
+                "Cost: ", self.cost_function(result_params, wiggle_signal, wiggle_noise)
             )
             if fit_full_model:
                 print(
@@ -813,7 +813,7 @@ class WiggleCleaner(object):
 
         if plot:
             self.plot_model(
-                wiggle_data,
+                wiggle_signal,
                 wiggle_noise,
                 result_params,
                 cov_matrix=cov_matrix,
@@ -884,11 +884,11 @@ class WiggleCleaner(object):
 
         return outlier_mask
 
-    def configure_noise(self, wiggle_data, wiggle_noise, specified_noise_level):
+    def configure_noise(self, wiggle_signal, wiggle_noise, specified_noise_level):
         """Configure the noise.
 
-        :param wiggle_data: wiggle_data
-        :type wiggle_data: np.ndarray
+        :param wiggle_signal: wiggle_signal
+        :type wiggle_signal: np.ndarray
         :param wiggle_noise: wiggle noise
         :type wiggle_noise: np.ndarray
         :param specified_noise_level: User-defined noise level to be used instead of the
@@ -902,12 +902,12 @@ class WiggleCleaner(object):
                 "Noise level not set! Either provide the noise or set the specified_noise_level."
             )
         if specified_noise_level > 0:
-            wiggle_noise = np.ones_like(wiggle_data) * specified_noise_level
+            wiggle_noise = np.ones_like(wiggle_signal) * specified_noise_level
         return wiggle_noise
 
     def plot_model(
         self,
-        wiggle_data,
+        wiggle_signal,
         wiggle_noise,
         result_params,
         cov_matrix=None,
@@ -915,8 +915,8 @@ class WiggleCleaner(object):
     ):
         """Plot the model.
 
-        :param wiggle_data: wiggle_data
-        :type wiggle_data: np.ndarray
+        :param wiggle_signal: wiggle_signal
+        :type wiggle_signal: np.ndarray
         :param wiggle_noise: wiggle noise
         :type wiggle_noise: np.ndarray
         :param result_params: Fitted parameters
@@ -940,7 +940,7 @@ class WiggleCleaner(object):
 
         ax.errorbar(
             self._wavelengths[(self._outlier_mask == 1) & (self._gap_mask == 1)],
-            wiggle_data[(self._outlier_mask == 1) & (self._gap_mask == 1)],
+            wiggle_signal[(self._outlier_mask == 1) & (self._gap_mask == 1)],
             yerr=wiggle_noise[(self._outlier_mask == 1) & (self._gap_mask == 1)],
             label="Fitted points",
             ls="None",
@@ -951,7 +951,7 @@ class WiggleCleaner(object):
         )
         ax.errorbar(
             self._wavelengths[(self._outlier_mask == 0) | (self._gap_mask == 0)],
-            wiggle_data[(self._outlier_mask == 0) | (self._gap_mask == 0)],
+            wiggle_signal[(self._outlier_mask == 0) | (self._gap_mask == 0)],
             yerr=wiggle_noise[(self._outlier_mask == 0) | (self._gap_mask == 0)],
             label="Rejected outliers",
             ls="None",
@@ -992,7 +992,7 @@ class WiggleCleaner(object):
         ax.set_xlabel(r"Wavelengths")
         ax.set_ylabel("Wiggle model")
         ax.legend()
-        ax.set_ylim(np.min(wiggle_data) * 0.95, np.max(wiggle_data) * 1.05)
+        ax.set_ylim(np.min(wiggle_signal) * 0.95, np.max(wiggle_signal) * 1.05)
 
         delta_lambda = self._wavelengths[1] - self._wavelengths[0]
         ax.set_xlim(
@@ -1029,7 +1029,7 @@ class WiggleCleaner(object):
         model_uncertainty = (model_up - model_down) / 2
         return model_uncertainty
 
-    def get_wiggle_data(
+    def get_wiggle_signal(
         self,
         x,
         y,
@@ -1037,7 +1037,7 @@ class WiggleCleaner(object):
         annulus_outer_radius=0,
         annulus_inner_radius=0,
     ):
-        """Get the modulation wiggle_data.
+        """Get the modulation wiggle_signal.
 
         :param spaxel_x: Spaxel x
         :type spaxel_x: int
@@ -1045,7 +1045,7 @@ class WiggleCleaner(object):
         :type spaxel_y: int
         :param aperture: aperture size to sum the spectra to average out the wiggles
         :type aperture: int
-        :return: Modulation wiggle_data and noise
+        :return: Modulation wiggle_signal and noise
         :rtype: Tuple of np.ndarray
         """
         (
@@ -1133,24 +1133,17 @@ class WiggleCleaner(object):
         best_model, _ = model(result.x)
 
         model_noise_fraction = (aperture_noise / aperture_spectra) ** 2
-        if annulus_outer_radius > 0:
-            model_noise_fraction += (annulus_noise / annulus_spectra) ** 2
-        model_noise = best_model * np.sqrt(model_noise_fraction)
+        # if annulus_outer_radius > 0:
+        #     model_noise_fraction += (annulus_noise / annulus_spectra) ** 2
 
         wiggle_signal = spectra / best_model
         wiggle_noise = (
-            np.sqrt((noise / spectra) ** 2 + (model_noise / best_model) ** 2)
-            * wiggle_signal
+            np.sqrt((noise / spectra) ** 2 + model_noise_fraction) * wiggle_signal
         )
 
         # replace non-positive noise with minimum non-negative value
-        min_positive_noise = np.nanmin(wiggle_noise[wiggle_noise > 0])
+        min_positive_noise = np.nanmin(wiggle_noise[wiggle_noise >= 0])
         wiggle_noise[wiggle_noise <= 0] = min_positive_noise
-
-        # # normalize the wiggle_data
-        # median = np.nanmedian(wiggle_data)
-        # wiggle_data /= median
-        # wiggle_data_noise /= median
 
         return wiggle_signal, wiggle_noise
 
@@ -1294,14 +1287,14 @@ class WiggleCleaner(object):
         elif min_n_frequency < 2:
             raise ValueError("min_n_frequency must be at least 2")
 
-        wiggle_data, wiggle_noise = self.get_wiggle_data(
+        wiggle_signal, wiggle_noise = self.get_wiggle_signal(
             x, y, aperture_radius, annulus_outer_radius, annulus_inner_radius
         )
 
         best_metric = None
         for k in tqdm(range(min_n_frequency, n_frequency + 1)):
             for i in range(min_n_amplitude, n_amplitude + 1):
-                result_params, cov_matrix = self.fit_wiggle_data(
+                result_params, cov_matrix = self.fit_wiggle(
                     x,
                     y,
                     aperture_radius=aperture_radius,
@@ -1327,7 +1320,7 @@ class WiggleCleaner(object):
                 )
 
                 fit_metric = self.get_model_selection_metric(
-                    wiggle_data,
+                    wiggle_signal,
                     wiggle_noise,
                     result_params,
                     selection_criteria=selection_criteria,
@@ -1355,7 +1348,7 @@ class WiggleCleaner(object):
                     best_n_frequency = k
                     best_metric = fit_metric
 
-        best_params, cov_matrix = self.fit_wiggle_data(
+        best_params, cov_matrix = self.fit_wiggle(
             x,
             y,
             aperture_radius=aperture_radius,
@@ -1387,7 +1380,7 @@ class WiggleCleaner(object):
 
         if plot:
             self.plot_model(
-                wiggle_data,
+                wiggle_signal,
                 wiggle_noise,
                 best_params,
                 cov_matrix=cov_matrix,
@@ -1396,13 +1389,13 @@ class WiggleCleaner(object):
         return best_params, cov_matrix
 
     def get_model_selection_metric(
-        self, wiggle_data, wiggle_noise, result_params, selection_criteria="bic"
+        self, wiggle_signal, wiggle_noise, result_params, selection_criteria="bic"
     ):
         """
         Get the fit metric: BIC or chi^2.
 
-        :param wiggle_data: wiggle_data
-        :type wiggle_data: np.ndarray
+        :param wiggle_signal: wiggle_signal
+        :type wiggle_signal: np.ndarray
         :param wiggle_noise: wiggle noise
         :type wiggle_noise: np.ndarray
         :param result_params: Fitted parameters
@@ -1415,7 +1408,7 @@ class WiggleCleaner(object):
         n_dof = np.sum(np.logical_or(self._gap_mask, self._outlier_mask))
         k = len(result_params)
 
-        chi2 = self.cost_function(result_params, wiggle_data, wiggle_noise)
+        chi2 = self.cost_function(result_params, wiggle_signal, wiggle_noise)
 
         if selection_criteria == "bic":
             return chi2 + k * np.log(n_dof)
@@ -1426,7 +1419,7 @@ class WiggleCleaner(object):
 
     def is_wiggle_detected(
         self,
-        wiggle_data,
+        wiggle_signal,
         wiggle_noise,
         result_params,
         sigma_threshold=5,
@@ -1435,8 +1428,8 @@ class WiggleCleaner(object):
     ):
         """Check if wiggle is detected.
 
-        :param wiggle_data: wiggle_data
-        :type wiggle_data: np.ndarray
+        :param wiggle_signal: wiggle_signal
+        :type wiggle_signal: np.ndarray
         :param wiggle_noise: wiggle_noise
         :type wiggle_noise: np.ndarray
         :param sigma_threshold: Sigma threshold
@@ -1450,7 +1443,7 @@ class WiggleCleaner(object):
         """
 
         # residual for flat spectrum
-        null_residual = wiggle_data - np.ones_like(wiggle_data)
+        null_residual = wiggle_signal - np.ones_like(wiggle_signal)
         n_data = np.sum(self._gap_mask)
 
         # p = np.percentile(np.abs(residual), 97.5)
@@ -1472,7 +1465,7 @@ class WiggleCleaner(object):
         chi2_red = chi2 / n_data
 
         model = self.wiggle_model(result_params)
-        model_residual = wiggle_data - model
+        model_residual = wiggle_signal - model
         chi2_model_red = (
             np.sum(
                 model_residual**2
@@ -1620,7 +1613,7 @@ class WiggleCleaner(object):
                     if not cleaning_mask[i, j]:
                         continue
 
-                    wiggle_data, wiggle_noise = self.get_wiggle_data(
+                    wiggle_signal, wiggle_noise = self.get_wiggle_signal(
                         i,
                         j,
                         aperture_radius=aperture_radius,
@@ -1637,7 +1630,7 @@ class WiggleCleaner(object):
                         print("###########################")
                         print(f"Fitting spaxel: {i}, {j}")
 
-                    result_params, cov_matrix = self.fit_wiggle_data(
+                    result_params, cov_matrix = self.fit_wiggle(
                         i,
                         j,
                         aperture_radius=aperture_radius,
@@ -1665,7 +1658,7 @@ class WiggleCleaner(object):
                     plt.show()
 
                     if self.is_wiggle_detected(
-                        wiggle_data,
+                        wiggle_signal,
                         wiggle_noise,
                         result_params,
                         sigma_threshold=wiggle_detection_sigma_threshold,
@@ -1681,8 +1674,8 @@ class WiggleCleaner(object):
                                 n_amplitude_for_detection == n_amplitude
                                 and n_frequency_for_detection == n_frequency
                             ):
-                                result_params, cov_matrix = self.fit_wiggle_data(
-                                    wiggle_data,
+                                result_params, cov_matrix = self.fit_wiggle(
+                                    wiggle_signal,
                                     wiggle_noise,
                                     n_amplitude=n_amplitude,
                                     n_frequency=n_frequency,
@@ -1705,7 +1698,7 @@ class WiggleCleaner(object):
                         else:
                             result_params, cov_matrix = (
                                 self.fit_wiggle_with_model_selection(
-                                    wiggle_data,
+                                    wiggle_signal,
                                     wiggle_noise,
                                     n_amplitude=n_amplitude,
                                     n_frequency=n_frequency,
