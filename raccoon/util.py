@@ -3,15 +3,13 @@ __author__ = "ajshajib"
 import numpy as np
 from scipy.signal import savgol_filter
 from scipy.interpolate import make_lsq_spline
-from copy import deepcopy
 import matplotlib.pyplot as plt
 from numpy.polynomial.chebyshev import chebfit
 from numpy.polynomial.chebyshev import chebval
 
 
 def polyval(coeffs, x):
-    """
-    Evaluate a polynomial at a point. The signature is the same as numpy.polyval.
+    """Evaluate a polynomial at a point. The signature is the same as numpy.polyval.
 
     :param coeffs: Coefficients of the polynomial
     :type coeffs: np.ndarray
@@ -24,8 +22,7 @@ def polyval(coeffs, x):
 
 
 def polyfit(x, y, deg, w=None):
-    """
-    Fit a polynomial to the data. The signature is the same as numpy.polyfit.
+    """Fit a polynomial to the data. The signature is the same as numpy.polyfit.
 
     :param x: x values
     :type x: np.ndarray
@@ -45,12 +42,12 @@ class Util(object):
     def find_extrema(
         cls, curve, init_peak_detection_proximity_threshold=50, is_peak=True
     ):
-        """
-        Find peaks or troughs of a curve
+        """Find peaks or troughs of a curve.
 
         :param curve: 1D numpy array
         :type curve: np.ndarray
-        :param init_peak_detection_proximity_threshold: Minimum distance between two extrema in pixels
+        :param init_peak_detection_proximity_threshold: Minimum distance between two
+            extrema in pixels
         :type init_peak_detection_proximity_threshold: int
         :param is_peak: If True, find peaks, otherwise find troughs
         :type is_peak: bool
@@ -72,8 +69,7 @@ class Util(object):
 
     @staticmethod
     def smooth_curve(curve):
-        """
-        Smooth a curve using Savitzky-Golay filter
+        """Smooth a curve using Savitzky-Golay filter.
 
         :param curve: 1D numpy array
         :type curve: np.ndarray
@@ -84,8 +80,7 @@ class Util(object):
 
     @staticmethod
     def lighter_smooth_curve(curve):
-        """
-        Smooth a curve using Savitzky-Golay filter
+        """Smooth a curve using Savitzky-Golay filter.
 
         :param curve: 1D numpy array
         :type curve: np.ndarray
@@ -98,12 +93,12 @@ class Util(object):
     def find_init_peaks_troughs_mids(
         cls, curve, init_peak_detection_proximity_threshold=50
     ):
-        """
-        Find initial peaks, troughs, and midpoints of a curve
+        """Find initial peaks, troughs, and midpoints of a curve.
 
         :param curve: 1D numpy array
         :type curve: np.ndarray
-        :param init_peak_detection_proximity_threshold: Minimum distance between two extrema in pixels
+        :param init_peak_detection_proximity_threshold: Minimum distance between two
+            extrema in pixels
         :type init_peak_detection_proximity_threshold: int
         :return: Peaks, troughs, and midpoints
         :rtype: Tuple[np.ndarray, np.ndarray, np.ndarray]
@@ -178,8 +173,7 @@ class Util(object):
         init_peak_detection_proximity_threshold=50,
         plot=False,
     ):
-        """
-        Get initial parameters for the curve fitting
+        """Get initial parameters for the curve fitting.
 
         :param curve: 1D numpy array
         :type curve: np.ndarray
@@ -272,14 +266,15 @@ class Util(object):
         init_peak_detection_proximity_threshold=50,
         plot=False,
     ):
-        """
-        Get initial parameters for curve fitting using spline-based amplitude and frequency.
+        """Get initial parameters for curve fitting using spline-based amplitude and
+        frequency.
 
         :param curve: 1D numpy array of spectral values
         :param scaled_wavelengths: Corresponding wavelength values
         :param n_amplitude: Number of knots for amplitude spline
         :param n_frequency: Number of knots for frequency spline
-        :param init_peak_detection_proximity_threshold: Minimum distance between extrema (in indices)
+        :param init_peak_detection_proximity_threshold: Minimum distance between extrema
+            (in indices)
         :param plot: Whether to show diagnostic plots
         :return: Tuple containing (amplitude_spline, frequency_spline, phase_offset)
         """
@@ -349,8 +344,7 @@ class Util(object):
 
     @classmethod
     def get_linear_freq_coeffs_from_extrema(cls, extrema, scaled_wavelengths):
-        """
-        Get the linear frequency coefficients from the extrema.
+        """Get the linear frequency coefficients from the extrema.
 
         :param extrema: Extrema
         :type extrema: np.ndarray
@@ -386,8 +380,7 @@ class Util(object):
         n_frequency,
         phi_0=None,
     ):
-        """
-        Fit a wiggly function to the peaks and troughs of a curve.
+        """Fit a wiggly function to the peaks and troughs of a curve.
 
         :param extrema_positions: Positions of the extrema
         :type extrema_positions: np.ndarray
@@ -403,7 +396,8 @@ class Util(object):
         :type n_frequency: int
         :param phi_0: Phase offset
         :type phi_0: float
-        :return: amplitude coefficients, offset coefficients, frequency coefficients, phase offset
+        :return: amplitude coefficients, offset coefficients, frequency coefficients,
+            phase offset
         """
         sorted_indices = np.argsort(extrema_positions)
         extrema_positions = extrema_positions[sorted_indices]
@@ -483,8 +477,7 @@ class Util(object):
         n_frequency,
         phi_0=None,
     ):
-        """
-        Fit a wiggly function to the peaks and troughs of a curve.
+        """Fit a wiggly function to the peaks and troughs of a curve.
 
         :param extrema_positions: Positions of the extrema
         :type extrema_positions: np.ndarray
@@ -500,7 +493,8 @@ class Util(object):
         :type n_frequency: int
         :param phi_0: Phase offset
         :type phi_0: float
-        :return: amplitude coefficients, offset coefficients, frequency coefficients, phase offset
+        :return: amplitude coefficients, offset coefficients, frequency coefficients,
+            phase offset
         """
         sorted_indices = np.argsort(extrema_positions)
         extrema_positions = extrema_positions[sorted_indices]
@@ -560,8 +554,7 @@ class Util(object):
     def fitted_sine_function(
         cls, xs, amplitude_coeffs, offset_coeffs, frequency_coeffs, phi_0
     ):
-        """
-        Evaluate the fitted sine function at x.
+        """Evaluate the fitted sine function at x.
 
         :param xs: x values
         :type xs: np.ndarray
@@ -584,8 +577,7 @@ class Util(object):
 
     @classmethod
     def fitted_sine_function_spline(cls, xs, amp_spline, frequency_spline, phi_0):
-        """
-        Evaluate the fitted sine function at x.
+        """Evaluate the fitted sine function at x.
 
         :param xs: x values
         :type xs: np.ndarray
