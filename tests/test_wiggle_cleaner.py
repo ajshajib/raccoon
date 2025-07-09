@@ -314,3 +314,38 @@ class TestWiggleCleaner:
         # Restore masks
         self.wc._gap_mask = np.ones(10)
         self.wc._outlier_mask = np.ones(10)
+
+    def test_cost_function_all_branches(self):
+        """Test cost_function covers all branches of residual_vector and returns a float."""
+        self.wc._amplitude_spline = DummySpline(np.ones(3))
+        self.wc._frequency_spline = DummySpline(np.ones(3))
+        self.wc._n_amplitude = 2
+        self.wc._n_frequency = 2
+        self.wc._gap_mask = np.ones(10)
+        self.wc._outlier_mask = np.ones(10)
+        params = np.ones(11)
+        signal = np.ones(10)
+        noise = np.ones(10) * 0.1
+        for scatter in [False, True]:
+            for huber_loss in [False, True]:
+                self.wc._include_scatter = scatter
+                self.wc._use_huber_loss = huber_loss
+                self.wc._huber_delta = 1.0
+                if huber_loss:
+                    import raccoon.util
+
+                    raccoon.util.huber = lambda delta, r: np.abs(r)
+                cost = self.wc.cost_function(params, signal, noise)
+                assert isinstance(cost, float) or isinstance(cost, np.floating)
+                assert cost >= 0
+                # Test with masks set to zero
+                self.wc._gap_mask = np.zeros(10)
+                self.wc._outlier_mask = np.ones(10)
+                cost2 = self.wc.cost_function(params, signal, noise)
+                assert cost2 == 0
+                self.wc._gap_mask = np.ones(10)
+                self.wc._outlier_mask = np.zeros(10)
+                cost3 = self.wc.cost_function(params, signal, noise)
+                assert cost3 == 0
+        self.wc._gap_mask = np.ones(10)
+        self.wc._outlier_mask = np.ones(10)
