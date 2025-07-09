@@ -103,3 +103,79 @@ class TestUtil:
             np.array([2.5251e-02, -8.4708e-03, 2.2459e-05, -1.5063e-08]),
             decimal=4,
         )
+
+    def test_get_init_params_basic(self):
+        # Create a simple sine wave as the curve
+        x = np.linspace(0, 2 * np.pi, 100)
+        curve = np.sin(x)
+        scaled_wavelengths = (x - x.min()) / (x.max() - x.min())
+        # Call get_init_params
+        freq, amp, offset, phi = self.util.get_init_params(
+            curve,
+            scaled_wavelengths,
+            n_amplitude=2,
+            n_offset=2,
+            n_frequency=1,
+            plot=False,
+        )
+        # Check output types and shapes
+        assert isinstance(freq, np.ndarray)
+        assert isinstance(amp, np.ndarray)
+        assert isinstance(offset, np.ndarray)
+        assert isinstance(phi, float) or isinstance(phi, np.floating)
+        # Check that arrays are not empty
+        assert freq.size > 0
+        assert amp.size > 0
+        assert offset.size > 0
+
+    def test_get_init_params_spline_basic(self):
+        # Create a simple sine wave as the curve
+        x = np.linspace(0, 2 * np.pi, 100)
+        curve = np.sin(x)
+        scaled_wavelengths = (x - x.min()) / (x.max() - x.min())
+        # Call get_init_params_spline
+        spline = self.util.get_init_params_spline(
+            curve,
+            scaled_wavelengths,
+            n_amplitude=2,
+            n_offset=2,
+            n_frequency=1,
+            plot=False,
+        )
+        # Check that the returned object is callable (spline)
+        assert callable(spline)
+        # Evaluate the spline at a few points and check output type
+        y_eval = spline(scaled_wavelengths)
+        assert isinstance(y_eval, np.ndarray)
+        assert y_eval.shape == curve.shape
+        # Check that the spline approximates the original curve
+        npt.assert_allclose(y_eval, curve, atol=0.2)
+
+    def test_fit_sine_function_to_extrema_spline_and_fitted_sine_function_spline(self):
+        # Create a simple sine wave and extract extrema
+        x = np.linspace(0, 2 * np.pi, 100)
+        curve = np.sin(x)
+        # Find peaks and troughs
+        peaks = self.util.find_extrema(curve)
+        troughs = self.util.find_extrema(curve, is_peak=False)
+        extrema_positions = np.sort(np.concatenate([peaks, troughs]))
+        extrema_vals = curve[extrema_positions]
+        is_peak = np.isin(extrema_positions, peaks)
+        # Fit splines to extrema
+        amp_spline, freq_spline, phi_0 = self.util.fit_sine_function_to_extrema_spline(
+            extrema_positions,
+            extrema_vals,
+            is_peak,
+            n_amplitude=3,
+            n_frequency=2,
+        )
+        # Check that splines are callable and phi_0 is a float
+        assert callable(amp_spline)
+        assert callable(freq_spline)
+        assert isinstance(phi_0, float) or isinstance(phi_0, np.floating)
+        # Evaluate the fitted sine function using splines
+        y_fit = self.util.fitted_sine_function_spline(x, amp_spline, freq_spline, phi_0)
+        assert isinstance(y_fit, np.ndarray)
+        assert y_fit.shape == curve.shape
+        # The fit should roughly match the original curve (allowing for spline smoothing)
+        npt.assert_allclose(y_fit - 1, curve, atol=0.3)
