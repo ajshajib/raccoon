@@ -322,8 +322,7 @@ class WiggleCleaner(object):
         annulus_outer_radius=0,
         annulus_inner_radius=0,
     ):
-        """
-        Compute the full model fit.
+        """Compute the full model fit.
 
         :param params: Parameters
         :type params: np.ndarray
@@ -408,8 +407,7 @@ class WiggleCleaner(object):
         annulus_outer_radius=0,
         annulus_inner_radius=0,
     ):
-        """
-        Compute the residual vector for the full model fit.
+        """Compute the residual vector for the full model fit.
 
         :param params: Parameters
         :type params: np.ndarray
