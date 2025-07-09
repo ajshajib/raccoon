@@ -19,8 +19,8 @@ class DummySpline:
 
 
 def make_dummy_wiggle_cleaner():
-    """
-    Create a WiggleCleaner instance with dummy data for testing.
+    """Create a WiggleCleaner instance with dummy data for testing.
+
     Returns:
         WiggleCleaner: An instance with dummy wavelength, datacube, and noise_cube.
     """
