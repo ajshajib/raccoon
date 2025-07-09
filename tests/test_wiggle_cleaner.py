@@ -3,7 +3,6 @@
 """Tests for `raccoon` package."""
 
 import numpy as np
-import pytest
 from raccoon.wiggle_cleaner import WiggleCleaner
 
 

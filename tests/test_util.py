@@ -71,7 +71,9 @@ class TestUtil:
     def test_fit_sine_function_to_extrema(self):
         extrema_positions = np.array([23, 74, 124, 174, 224, 273, 323, 373, 423, 474])
         extrema_vals = np.sin(2 * np.pi * extrema_positions / 10)
-        is_peak = np.array([True, False, True, False, True, False, True, False, True])
+        is_peak = np.array(
+            [True, False, True, False, True, False, True, False, True, False]
+        )
         n_amplitude = 2
         n_offset = 3
         n_frequency = 1
