@@ -17,7 +17,7 @@ Raccoon cleans modulation due to resampling noise (i.e., aliasing artifacts) in 
     :target: https://raccoon-docs.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
 
-.. |GitHub| .. image:: https://github.com/ajshajib/raccoon/workflows/ci.yaml/badge.svg?branch=main
+.. |GitHub| image:: https://github.com/ajshajib/raccoon/workflows/ci.yaml/badge.svg?branch=main
     :target: https://github.com/ajshajib/raccoon/workflows/ci.yaml
     :alt: Build Status
 
