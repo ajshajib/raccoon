@@ -136,8 +136,8 @@ class TestUtil:
         spline = self.util.get_init_params_spline(
             curve,
             x,
-            n_amplitude=2,
-            n_frequency=1,
+            n_amplitude=4,  # Increased to ensure enough knots/points
+            n_frequency=3,  # Increased to ensure enough knots/points
             plot=False,
         )
         # Check that the returned object is callable (spline)
