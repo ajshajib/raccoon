@@ -284,7 +284,9 @@ class TestWiggleCleaner:
         # Set up masks
         self.wc._gap_mask = np.ones(10)
         self.wc._outlier_mask = np.ones(10)
-        params = np.ones(11)  # Ensure enough params for n_a=2, n_f=2, phi_0, etc.
+        params = np.ones(
+            12
+        )  # Ensure enough params for n_a=2, n_f=2, phi_0, etc. and scatter
         signal = np.ones(10)
         noise = np.ones(10) * 0.1
         # Test all combinations of scatter and huber
@@ -323,7 +325,7 @@ class TestWiggleCleaner:
         self.wc._n_frequency = 2
         self.wc._gap_mask = np.ones(10)
         self.wc._outlier_mask = np.ones(10)
-        params = np.ones(11)
+        params = np.ones(12)  # Ensure enough params for scatter
         signal = np.ones(10)
         noise = np.ones(10) * 0.1
         for scatter in [False, True]:
@@ -358,7 +360,7 @@ class TestWiggleCleaner:
         self.wc._n_frequency = 2
         self.wc._gap_mask = np.ones(10)
         self.wc._outlier_mask = np.ones(10)
-        params = np.ones(11)
+        params = np.ones(12)  # Ensure enough params for scatter
         signal = np.ones(10)
         noise = np.ones(10) * 0.1
         for scatter in [False, True]:
@@ -381,6 +383,52 @@ class TestWiggleCleaner:
                 self.wc._gap_mask = np.ones(10)
                 self.wc._outlier_mask = np.zeros(10)
                 out3 = f(params)
+                assert np.all(out3 == 0)
+        self.wc._gap_mask = np.ones(10)
+        self.wc._outlier_mask = np.ones(10)
+
+    def test_get_residual_func_phase_only_covers_residual_func(self):
+        """Test that the function returned by get_residual_func_phase_only covers all branches."""
+        self.wc._amplitude_spline = DummySpline(np.ones(3))
+        self.wc._frequency_spline = DummySpline(np.ones(3))
+        self.wc._n_amplitude = 2
+        self.wc._n_frequency = 2
+        self.wc._gap_mask = np.ones(10)
+        self.wc._outlier_mask = np.ones(10)
+        # Prepare init_params and phase-only params
+        n_a, n_f = self.wc._n_amplitude, self.wc._n_frequency
+        # Use correct number of params for set_params: amplitude, frequency, phi_0, n_a, n_f
+        init_amplitude_params = np.ones(n_a + 2)
+        init_frequency_params = np.ones(n_f + 2)
+        init_phi_0 = 0.5
+        # Use n_a+2, n_f+2 for set_params, but ensure phase_only_params is long enough for scatter
+        init_params = self.wc.set_params(
+            init_amplitude_params, init_frequency_params, init_phi_0, n_a + 2, n_f + 2
+        )
+        # phase-only params: frequency params + phi_0, but must be long enough for scatter index
+        phase_only_params = np.ones(max(len(init_frequency_params) + 1, n_a + n_f + 6))
+        signal = np.ones(10)
+        noise = np.ones(10) * 0.1
+        for scatter in [False, True]:
+            for huber_loss in [False, True]:
+                self.wc._include_scatter = scatter
+                self.wc._use_huber_loss = huber_loss
+                self.wc._huber_delta = 1.0
+                if huber_loss:
+                    import raccoon.util
+
+                    raccoon.util.huber = lambda delta, r: np.abs(r)
+                f = self.wc.get_residual_func_phase_only(init_params, signal, noise)
+                out = f(phase_only_params)
+                assert out.shape == signal.shape
+                # Test with masks set to zero
+                self.wc._gap_mask = np.zeros(10)
+                self.wc._outlier_mask = np.ones(10)
+                out2 = f(phase_only_params)
+                assert np.all(out2 == 0)
+                self.wc._gap_mask = np.ones(10)
+                self.wc._outlier_mask = np.zeros(10)
+                out3 = f(phase_only_params)
                 assert np.all(out3 == 0)
         self.wc._gap_mask = np.ones(10)
         self.wc._outlier_mask = np.ones(10)
