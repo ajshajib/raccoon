@@ -93,6 +93,14 @@ class TestWiggleCleaner:
         n_a, n_f = self.wc.configure_polynomial_ns()
         assert n_a == 3 and n_f == 4
 
+    def test_configure_polynomial_ns_defaults(self):
+        """Test configure_polynomial_ns uses instance defaults when args are None."""
+        self.wc._n_amplitude = 7
+        self.wc._n_frequency = 5
+        n_a, n_f = self.wc.configure_polynomial_ns(None, None)
+        assert n_a == 7
+        assert n_f == 5
+
     def test_model_full_fit_and_residual_vector_full_fit(self):
         """Test full model fitting and residual vector calculation."""
         self.wc._amplitude_spline = DummySpline(np.ones(3))
@@ -243,3 +251,15 @@ class TestWiggleCleaner:
         params = base_params.copy()
         out = self.wc.wiggle_model(params)
         assert out.shape == self.wc._wavelengths.shape
+
+    def test_init_with_gaps(self):
+        """Test WiggleCleaner __init__ with gaps argument triggers set_gaps branch."""
+        wavelengths = np.linspace(1, 10, 10)
+        datacube = np.ones((10, 5, 5))
+        noise_cube = np.ones((10, 5, 5)) * 0.1
+        gaps = [[2, 4], [6, 8]]
+        wc = WiggleCleaner(wavelengths, datacube, noise_cube, gaps=gaps)
+        # The _gaps attribute should be set and _gap_mask should exist
+        assert hasattr(wc, "_gaps")
+        assert hasattr(wc, "_gap_mask")
+        assert np.all((wc._gap_mask == 1) | (wc._gap_mask == 0))
