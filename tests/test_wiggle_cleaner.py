@@ -209,3 +209,37 @@ class TestWiggleCleaner:
             self.wc.clean_cube()
         except Exception:
             pass
+
+    def test_wiggle_model_sharpening_modes(self):
+        """Test wiggle_model with all sharpening mode combinations."""
+        self.wc._amplitude_spline = DummySpline(np.ones(3))
+        self.wc._frequency_spline = DummySpline(np.ones(3))
+        self.wc._n_amplitude = 1
+        self.wc._n_frequency = 1
+        n_a, n_f = self.wc._n_amplitude, self.wc._n_frequency
+        # base params: [amp0, amp1, freq0, freq1, phi_0]
+        base_params = np.ones(n_a + n_f + 3)
+        # Only asymmetric sharpening
+        self.wc._asymmetric_sharpening = True
+        self.wc._symmetric_sharpening = False
+        params = np.concatenate([base_params, [2.0]])
+        out = self.wc.wiggle_model(params)
+        assert out.shape == self.wc._wavelengths.shape
+        # Only symmetric sharpening
+        self.wc._asymmetric_sharpening = False
+        self.wc._symmetric_sharpening = True
+        params = np.concatenate([base_params, [3.0]])
+        out = self.wc.wiggle_model(params)
+        assert out.shape == self.wc._wavelengths.shape
+        # Both sharpenings
+        self.wc._asymmetric_sharpening = True
+        self.wc._symmetric_sharpening = True
+        params = np.concatenate([base_params, [4.0, 5.0]])
+        out = self.wc.wiggle_model(params)
+        assert out.shape == self.wc._wavelengths.shape
+        # Neither sharpening
+        self.wc._asymmetric_sharpening = False
+        self.wc._symmetric_sharpening = False
+        params = base_params.copy()
+        out = self.wc.wiggle_model(params)
+        assert out.shape == self.wc._wavelengths.shape
