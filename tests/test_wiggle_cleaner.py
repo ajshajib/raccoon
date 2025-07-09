@@ -274,3 +274,43 @@ class TestWiggleCleaner:
         assert hasattr(wc, "_gaps")
         assert hasattr(wc, "_gap_mask")
         assert np.all((wc._gap_mask == 1) | (wc._gap_mask == 0))
+
+    def test_residual_vector_all_branches(self):
+        """Test residual_vector covers all branches: scatter, huber, masks."""
+        self.wc._amplitude_spline = DummySpline(np.ones(3))
+        self.wc._frequency_spline = DummySpline(np.ones(3))
+        self.wc._n_amplitude = 1
+        self.wc._n_frequency = 1
+        # Set up masks
+        self.wc._gap_mask = np.ones(10)
+        self.wc._outlier_mask = np.ones(10)
+        params = np.ones(7)
+        signal = np.ones(10)
+        noise = np.ones(10) * 0.1
+        # Test all combinations of scatter and huber
+        for scatter in [False, True]:
+            for huber_loss in [False, True]:
+                self.wc._include_scatter = scatter
+                self.wc._use_huber_loss = huber_loss
+                self.wc._huber_delta = 1.0
+                # Patch huber if needed
+                if huber_loss:
+                    import raccoon.util
+
+                    raccoon.util.huber = lambda delta, r: np.abs(
+                        r
+                    )  # simple pass-through
+                out = self.wc.residual_vector(params, signal, noise)
+                assert out.shape == signal.shape
+                # Now test with masks that are not all ones
+                self.wc._gap_mask = np.zeros(10)
+                self.wc._outlier_mask = np.ones(10)
+                out2 = self.wc.residual_vector(params, signal, noise)
+                assert np.all(out2 == 0)
+                self.wc._gap_mask = np.ones(10)
+                self.wc._outlier_mask = np.zeros(10)
+                out3 = self.wc.residual_vector(params, signal, noise)
+                assert np.all(out3 == 0)
+        # Restore masks
+        self.wc._gap_mask = np.ones(10)
+        self.wc._outlier_mask = np.ones(10)
