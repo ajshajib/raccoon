@@ -132,11 +132,10 @@ class TestUtil:
         # Use a longer sine wave to ensure enough extrema for cubic spline
         x = np.linspace(0, 10 * np.pi, 500)
         curve = np.sin(x)
-        scaled_wavelengths = (x - x.min()) / (x.max() - x.min())
-        # Call get_init_params_spline
+        # Use x for both curve and x positions (no scaling)
         spline = self.util.get_init_params_spline(
             curve,
-            scaled_wavelengths,
+            x,
             n_amplitude=2,
             n_frequency=1,
             plot=False,
@@ -144,7 +143,7 @@ class TestUtil:
         # Check that the returned object is callable (spline)
         assert callable(spline)
         # Evaluate the spline at a few points and check output type
-        y_eval = spline(scaled_wavelengths)
+        y_eval = spline(x)
         assert isinstance(y_eval, np.ndarray)
         assert y_eval.shape == curve.shape
         # Check that the spline output is finite and not constant
