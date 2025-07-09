@@ -221,11 +221,11 @@ class TestWiggleCleaner:
     def test_wiggle_model_sharpening_modes(self):
         """Test wiggle_model with all sharpening mode combinations."""
         self.wc._amplitude_spline = DummySpline(np.ones(3))
-        self.wc._frequency_spline = DummySpline(np.ones(3))
+        self.wc._frequency_spline = DummySpline(np.ones(4))  # n_frequency=2 -> 3 coeffs
         self.wc._n_amplitude = 1
-        self.wc._n_frequency = 1
+        self.wc._n_frequency = 2  # Must be at least 2 per implementation
         n_a, n_f = self.wc._n_amplitude, self.wc._n_frequency
-        # base params: [amp0, amp1, freq0, freq1, phi_0]
+        # base params: [amp0, amp1, freq0, freq1, freq2, phi_0]
         base_params = np.ones(n_a + n_f + 3)
         # Only asymmetric sharpening
         self.wc._asymmetric_sharpening = True
