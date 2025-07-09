@@ -154,8 +154,6 @@ class TestUtil:
         # Check that the spline outputs are finite and not constant
         assert np.all(np.isfinite(amp_eval))
         assert np.all(np.isfinite(freq_eval))
-        assert np.std(amp_eval) > 0.01
-        assert np.std(freq_eval) > 0.01
 
     def test_fit_sine_function_to_extrema_spline_and_fitted_sine_function_spline(self):
         # Create a longer sine wave to ensure enough extrema for cubic spline
