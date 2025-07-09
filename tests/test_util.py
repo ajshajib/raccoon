@@ -94,6 +94,6 @@ class TestUtil:
         assert len(amplitude_coeffs) == 3
         assert len(offset_coeffs) == 4
         assert len(frequency_coeffs) == 2
-        assert len(phi_0) == 3
+        np.assert_isclose(phi_0, 0.12905, atol=1e-4)
         npt.assert_array_almost_equal(amplitude_coeffs, np.array([1, 0, 0]), decimal=4)
         npt.assert_array_almost_equal(offset_coeffs, np.array([0, 0, 0]), decimal=4)
