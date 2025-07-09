@@ -9,18 +9,13 @@ from scipy.linalg import lstsq
 from astropy.stats import sigma_clip
 from scipy import stats
 from statsmodels.stats.multitest import fdrcorrection
-
-# from statsmodels.robust import mad
 from tqdm.notebook import tqdm
-
 
 from .util import Util
 
-# from .util import polyval
-# from .util import polyfit
-
 
 class WiggleCleaner(object):
+    """WiggleCleaner class for cleaning modulation/wiggles in spectral data."""
 
     def __init__(
         self,
@@ -73,6 +68,7 @@ class WiggleCleaner(object):
 
         self._outlier_rejection_method = None
 
+        # Initialize mask for handling gaps and outliers
         if gaps is None:
             self._gaps = []
             self._gap_mask = np.ones_like(self._wavelengths)
@@ -326,7 +322,24 @@ class WiggleCleaner(object):
         annulus_outer_radius=0,
         annulus_inner_radius=0,
     ):
-        """"""
+        """
+        Compute the full model fit.
+
+        :param params: Parameters
+        :type params: np.ndarray
+        :param x: x coordinates
+        :type x: np.ndarray
+        :param y: y coordinates
+        :type y: np.ndarray
+        :param aperture_radius: Aperture radius
+        :type aperture_radius: float
+        :param annulus_outer_radius: Outer radius of the annulus
+        :type annulus_outer_radius: float
+        :param annulus_inner_radius: Inner radius of the annulus
+        :type annulus_inner_radius: float
+        :return: Full model, spectra, and total noise
+        :rtype: Tuple[np.ndarray, np.ndarray, np.ndarray]
+        """
         (
             spectra,
             noise,
@@ -340,9 +353,8 @@ class WiggleCleaner(object):
 
         wavelengths = self.scale_wavelengths_negative1_to_1(self._wavelengths)
 
-        # fit c_1 * aperture_spectra + c_3 * wavelengths**a + (c_4 * wavelengths**2 + c_5 * wavelengths + c_6)
-        # given non-linear parameter a, treat all c_1 parameters as linear parameters and derive them using linear inversion
-
+        # fit c_1 * aperture_spectra + c_3 * wavelengths**a + \sum_i c_i * wavelengths**i + c_N * annulus_spectra
+        # given non-linear parameter a, treat all c_i parameters as linear parameters and derive them using linear inversion
         wiggle_model = self.wiggle_model(params[:-1])
 
         A = np.column_stack(
@@ -396,7 +408,24 @@ class WiggleCleaner(object):
         annulus_outer_radius=0,
         annulus_inner_radius=0,
     ):
-        """"""
+        """
+        Compute the residual vector for the full model fit.
+
+        :param params: Parameters
+        :type params: np.ndarray
+        :param x: x coordinates
+        :type x: np.ndarray
+        :param y: t coordinates
+        :type y: np.ndarray
+        :param aperture_radius: Aperture radius
+        :type aperture_radius: float
+        :param annulus_outer_radius: Outer radius of the annulus
+        :type annulus_outer_radius: float
+        :param annulus_inner_radius: Inner radius of the annulus
+        :type annulus_inner_radius: float
+        :return: Residual vector
+        :rtype: np.ndarray
+        """
         full_model, spectra, total_noise = self.model_full_fit(
             params,
             x,
@@ -408,7 +437,7 @@ class WiggleCleaner(object):
         return (full_model - spectra) / total_noise
 
     def residual_vector(self, params, wiggle_signal, wiggle_noise):
-        """ " Get the residual vector.
+        """Get the residual vector.
 
         :param params: Parameters
         :type params: np.ndarray
@@ -447,7 +476,7 @@ class WiggleCleaner(object):
         return residual
 
     def cost_function(self, params, wiggle_signal, wiggle_noise):
-        """Get the cost.
+        """Compute the cost function (sum of squared residuals).
 
         :param params: Parameters
         :type params: np.ndarray
@@ -1062,8 +1091,7 @@ class WiggleCleaner(object):
         wavelengths = self.scale_wavelengths_negative1_to_1(self._wavelengths)
 
         # fit c_1 * aperture_spectra + c_3 * wavelengths**a + \sum_i c_i * wavelengths**i + c_N * annulus_spectra
-        # given non-linear parameter a, treat all c_1 parameters as linear parameters and derive them using linear inversion
-
+        # given non-linear parameter a, treat all c_i parameters as linear parameters and derive them using linear inversion
         def model(a):
             # Construct the design matrix for the current 'a'
             A = np.column_stack(
@@ -1271,6 +1299,30 @@ class WiggleCleaner(object):
         :type outlier_rejection_method: str
         :param huber_delta: Delta for Huber loss function
         :type huber_delta: float
+        :param fdr_alpha: False discovery rate (FDR) correction threshold, smaller value
+            will reject less outliers
+        :type fdr_alpha: float
+        :param fdr_outlier_max_fraction: Maximum fraction of outliers to reject using
+            FDR
+        :type fdr_outlier_max_fraction: float
+        :param sigma_clip_sigma: Sigma threshold for sigma clipping
+        :type sigma_clip_sigma: float
+        :param sigma_clip_max_iterations: Number of sigma clip iterations
+        :type sigma_clip_max_iterations: int
+        :param extract_uncertainty: If True, extract the uncertainties
+        :type extract_uncertainty: bool
+        :param symmetric_sharpening: If True, use symmetric sharpening
+        :type symmetric_sharpening: bool
+        :param asymmetric_sharpening: If True, use asymmetric sharpening
+        :type asymmetric_sharpening: bool
+        :param selection_criteria: Selection criteria for model selection, "bic" or "chi2"
+        :type selection_criteria: str
+        :param min_selection_difference: Minimum difference between the best and the next best model selection criteria
+        :type min_selection_difference: float
+        :param verbose: If True, print the results
+        :type verbose: bool
+        :param plot: If True, plot the results
+        :type plot: bool
         :return: Fitted parameters
         :rtype: np.ndarray
         """
