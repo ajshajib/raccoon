@@ -17,12 +17,12 @@ Raccoon cleans modulation due to resampling noise (i.e., aliasing artifacts) in 
     :target: https://raccoon-docs.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
 
-.. |GitHub| image:: https://github.com/ajshajib/raccoon/workflows/CI/badge.svg
-    :target: https://github.com/ajshajib/raccoon/actions
+.. |GitHub| image:: https://github.com/ajshajib/raccoon/workflows/Tests/badge.svg
+    :target: https://github.com/ajshajib/raccoon/workflows/ci.yaml
     :alt: Build Status
 
-.. |Codecov| image:: https://codecov.io/gh/ajshajib/raccoon/graph/badge.svg?token=PyDRdtsGSX
-    :target: https://codecov.io/gh/ajshajib/raccoon
+.. |Codecov| image:: https://codecov.io/github/ajshajib/raccoon/graph/badge.svg?token=IZOMFPHA7W 
+    :target: https://codecov.io/github/ajshajib/raccoon
     :alt: Code coverage
 
 .. |Black| image:: https://img.shields.io/badge/code%20style-black-000000.svg
