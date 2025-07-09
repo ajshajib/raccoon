@@ -133,22 +133,29 @@ class TestUtil:
         x = np.linspace(0, 10 * np.pi, 500)
         curve = np.sin(x)
         # Use x for both curve and x positions (no scaling)
-        spline = self.util.get_init_params_spline(
+        amp_spline, freq_spline, phi_0 = self.util.get_init_params_spline(
             curve,
             x,
             n_amplitude=4,  # Increased to ensure enough knots/points
             n_frequency=3,  # Increased to ensure enough knots/points
             plot=False,
         )
-        # Check that the returned object is callable (spline)
-        assert callable(spline)
-        # Evaluate the spline at a few points and check output type
-        y_eval = spline(x)
-        assert isinstance(y_eval, np.ndarray)
-        assert y_eval.shape == curve.shape
-        # Check that the spline output is finite and not constant
-        assert np.all(np.isfinite(y_eval))
-        assert np.std(y_eval) > 0.01
+        # Check that the returned splines are callable and phi_0 is a float
+        assert callable(amp_spline)
+        assert callable(freq_spline)
+        assert isinstance(phi_0, float) or isinstance(phi_0, np.floating)
+        # Evaluate the splines at a few points and check output type
+        amp_eval = amp_spline(x)
+        freq_eval = freq_spline(x)
+        assert isinstance(amp_eval, np.ndarray)
+        assert isinstance(freq_eval, np.ndarray)
+        assert amp_eval.shape == curve.shape
+        assert freq_eval.shape == curve.shape
+        # Check that the spline outputs are finite and not constant
+        assert np.all(np.isfinite(amp_eval))
+        assert np.all(np.isfinite(freq_eval))
+        assert np.std(amp_eval) > 0.01
+        assert np.std(freq_eval) > 0.01
 
     def test_fit_sine_function_to_extrema_spline_and_fitted_sine_function_spline(self):
         # Create a longer sine wave to ensure enough extrema for cubic spline
