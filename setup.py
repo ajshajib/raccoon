@@ -32,6 +32,6 @@ setup(
     packages=find_packages(where=".", include=["raccoon", "raccoon.*"]),
     package_dir={"": "."},
     url="https://github.com/ajshajib/raccoon",
-    version="0.0.0",
+    version="0.0.1",
     zip_safe=False,
 )
