@@ -225,8 +225,8 @@ class TestWiggleCleaner:
         self.wc._n_amplitude = 2  # Must be at least 2 per implementation
         self.wc._n_frequency = 2  # Must be at least 2 per implementation
         n_a, n_f = self.wc._n_amplitude, self.wc._n_frequency
-        # base params: [amp0, amp1, amp2, freq0, freq1, freq2, phi_0]
-        base_params = np.ones(n_a + n_f + 3)
+        # base params: [amp0, amp1, amp2, freq0, freq1, freq2, phi_0, extra1, extra2]
+        base_params = np.ones(n_a + n_f + 5)  # Ensure enough params for split_params
         # Only asymmetric sharpening
         self.wc._asymmetric_sharpening = True
         self.wc._symmetric_sharpening = False
