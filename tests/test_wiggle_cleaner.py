@@ -279,12 +279,12 @@ class TestWiggleCleaner:
         """Test residual_vector covers all branches: scatter, huber, masks."""
         self.wc._amplitude_spline = DummySpline(np.ones(3))
         self.wc._frequency_spline = DummySpline(np.ones(3))
-        self.wc._n_amplitude = 1
-        self.wc._n_frequency = 1
+        self.wc._n_amplitude = 2  # Must be at least 2
+        self.wc._n_frequency = 2  # Must be at least 2
         # Set up masks
         self.wc._gap_mask = np.ones(10)
         self.wc._outlier_mask = np.ones(10)
-        params = np.ones(7)
+        params = np.ones(11)  # Ensure enough params for n_a=2, n_f=2, phi_0, etc.
         signal = np.ones(10)
         noise = np.ones(10) * 0.1
         # Test all combinations of scatter and huber
