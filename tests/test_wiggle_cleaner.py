@@ -80,7 +80,7 @@ class TestWiggleCleaner:
         """Test parameter splitting and setting."""
         self.wc._n_amplitude = 1
         self.wc._n_frequency = 1
-        params = np.arange(7)
+
         arr = self.wc.set_params(np.array([1, 2]), np.array([3, 4]), 5.0, 1, 1)
         assert arr.shape[0] == 5
 
