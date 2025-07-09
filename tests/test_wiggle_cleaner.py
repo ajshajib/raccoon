@@ -118,6 +118,17 @@ class TestWiggleCleaner:
         except Exception:
             pass
 
+    def test_residual_vector_full_fit_explicit(self):
+        """Explicitly test residual_vector_full_fit covers all lines and output shape."""
+        # Mock model_full_fit to return known arrays
+        arr = np.arange(10.0)
+        self.wc.model_full_fit = lambda *a, **kw: (arr + 1, arr, np.ones_like(arr) * 2)
+        params = np.ones(7)
+        out = self.wc.residual_vector_full_fit(params, 2, 2, 1)
+        # Should be ((arr+1) - arr) / 2 = 0.5 everywhere
+        assert np.allclose(out, 0.5)
+        assert out.shape == arr.shape
+
     def test_residual_vector_and_cost_function(self):
         """Test residual vector and cost function calculations."""
         self.wc._amplitude_spline = DummySpline(np.ones(3))
