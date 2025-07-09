@@ -92,7 +92,7 @@ class TestUtil:
         print(frequency_coeffs)
         print(phi_0)
         assert len(amplitude_coeffs) == 3
-        assert len(offset_coeffs) == 3
+        assert len(offset_coeffs) == 4
         assert len(frequency_coeffs) == 3
         assert len(phi_0) == 3
         npt.assert_array_almost_equal(amplitude_coeffs, np.array([1, 0, 0]), decimal=4)
