@@ -477,7 +477,8 @@ class Util(object):
         n_frequency,
         phi_0=None,
     ):
-        """Fit a wiggly function to the peaks and troughs of a curve using splines for amplitude and frequency.
+        """Fit a wiggly function to the peaks and troughs of a curve using splines for
+        amplitude and frequency.
 
         :param extrema_positions: Positions of the extrema
         :type extrema_positions: np.ndarray
