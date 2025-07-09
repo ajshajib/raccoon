@@ -71,7 +71,9 @@ class TestUtil:
     def test_fit_sine_function_to_extrema(self):
         extrema_positions = np.array([23, 74, 124, 174, 224, 273, 323, 373, 423, 474])
         extrema_vals = np.sin(2 * np.pi * extrema_positions / 10)
-        is_peak = np.array([True, False, True, False, True, False, True, False, True])
+        is_peak = np.array(
+            [True, False, True, False, True, False, True, False, True, False]
+        )
         n_amplitude = 2
         n_offset = 3
         n_frequency = 1
@@ -90,8 +92,14 @@ class TestUtil:
         print(frequency_coeffs)
         print(phi_0)
         assert len(amplitude_coeffs) == 3
-        assert len(offset_coeffs) == 3
-        assert len(frequency_coeffs) == 3
-        assert len(phi_0) == 3
-        npt.assert_array_almost_equal(amplitude_coeffs, np.array([1, 0, 0]), decimal=4)
-        npt.assert_array_almost_equal(offset_coeffs, np.array([0, 0, 0]), decimal=4)
+        assert len(offset_coeffs) == 4
+        assert len(frequency_coeffs) == 2
+        npt.assert_allclose(phi_0, 0.12905, atol=1e-4)
+        npt.assert_array_almost_equal(
+            amplitude_coeffs, np.array([1.4288e-01, -1.5889e-03, 1.5985e-06]), decimal=4
+        )
+        npt.assert_array_almost_equal(
+            offset_coeffs,
+            np.array([2.5251e-02, -8.4708e-03, 2.2459e-05, -1.5063e-08]),
+            decimal=4,
+        )
