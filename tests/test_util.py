@@ -133,12 +133,11 @@ class TestUtil:
         x = np.linspace(0, 2 * np.pi, 100)
         curve = np.sin(x)
         scaled_wavelengths = (x - x.min()) / (x.max() - x.min())
-        # Call get_init_params_spline
+        # Call get_init_params_spline (remove n_offset argument)
         spline = self.util.get_init_params_spline(
             curve,
             scaled_wavelengths,
             n_amplitude=2,
-            n_offset=2,
             n_frequency=1,
             plot=False,
         )
@@ -152,8 +151,8 @@ class TestUtil:
         npt.assert_allclose(y_eval, curve, atol=0.2)
 
     def test_fit_sine_function_to_extrema_spline_and_fitted_sine_function_spline(self):
-        # Create a simple sine wave and extract extrema
-        x = np.linspace(0, 2 * np.pi, 100)
+        # Create a longer sine wave to ensure enough extrema for cubic spline
+        x = np.linspace(0, 10 * np.pi, 500)
         curve = np.sin(x)
         # Find peaks and troughs
         peaks = self.util.find_extrema(curve)
@@ -161,13 +160,13 @@ class TestUtil:
         extrema_positions = np.sort(np.concatenate([peaks, troughs]))
         extrema_vals = curve[extrema_positions]
         is_peak = np.isin(extrema_positions, peaks)
-        # Fit splines to extrema
+        # Use fewer knots to avoid ValueError (need more x points)
         amp_spline, freq_spline, phi_0 = self.util.fit_sine_function_to_extrema_spline(
             extrema_positions,
             extrema_vals,
             is_peak,
-            n_amplitude=3,
-            n_frequency=2,
+            n_amplitude=4,
+            n_frequency=3,
         )
         # Check that splines are callable and phi_0 is a float
         assert callable(amp_spline)
