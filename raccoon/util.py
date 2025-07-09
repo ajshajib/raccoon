@@ -477,7 +477,7 @@ class Util(object):
         n_frequency,
         phi_0=None,
     ):
-        """Fit a wiggly function to the peaks and troughs of a curve.
+        """Fit a wiggly function to the peaks and troughs of a curve using splines for amplitude and frequency.
 
         :param extrema_positions: Positions of the extrema
         :type extrema_positions: np.ndarray
@@ -493,27 +493,28 @@ class Util(object):
         :type n_frequency: int
         :param phi_0: Phase offset
         :type phi_0: float
-        :return: amplitude coefficients, offset coefficients, frequency coefficients,
-            phase offset
+        :return: amplitude spline, frequency spline, phase offset
+        :rtype: tuple
         """
+        # Sort extrema by position and prepare arrays
         sorted_indices = np.argsort(extrema_positions)
         extrema_positions = extrema_positions[sorted_indices]
         extrema_values = extrema_vals[sorted_indices] - 1
         is_peak = is_peak[sorted_indices]
 
-        # Fit amplitude A(x) spline
+        # Fit amplitude A(x) spline using least-squares spline fit
         abs_y = np.abs(extrema_values)
 
-        # uniform knots
+        # Create uniform knots for the spline
         knots = np.linspace(extrema_positions[0], extrema_positions[-1], n_amplitude)
-        degree = 3  # Cubic spline
+        degree = 3  # Use cubic spline
         t = np.r_[
             [knots[0]] * degree, knots, [knots[-1]] * degree
         ]  # Extend knots for boundary conditions
 
         amp_spline = make_lsq_spline(extrema_positions, abs_y, t=t, k=degree)
 
-        # Fit frequency polynomial F(x)
+        # Fit frequency polynomial F(x) by solving a linear system for phase differences
         A_freq = []
         b_freq = []
         for i in range(1, len(extrema_positions)):
@@ -521,7 +522,7 @@ class Util(object):
             x_end = extrema_positions[i]
             # Phase difference required between points (π for peak-trough, 2π otherwise)
             delta_phase = np.pi if (is_peak[i - 1] != is_peak[i]) else 2 * np.pi
-            # Equation: sum(F_k * (x_end^{k+1} - x_start^{k+1}) = delta_phase
+            # Build equation for frequency polynomial coefficients
             equation = [
                 x_end ** (k + 1) - x_start ** (k + 1) for k in range(n_frequency + 1)
             ]
@@ -529,7 +530,7 @@ class Util(object):
             b_freq.append(delta_phase)
         frequency_coeffs = np.linalg.lstsq(A_freq, b_freq, rcond=None)[0]
 
-        # Compute phase offset phi_0
+        # Compute phase offset phi_0 so that the first extremum matches the expected phase
         x0 = extrema_positions[0]
         # Compute F(x0) * x0
         F_x0 = np.polyval(frequency_coeffs[::-1], x0)  # Reverse coeffs for polyval
@@ -538,9 +539,8 @@ class Util(object):
         # φ(x0) should be π/2 for peaks, 3π/2 for troughs
         target_phase = np.pi / 2 if is_peak[0] else 3 * np.pi / 2
         phi_0 = target_phase - F_x0_x0
-        # target_phase = np.pi / 2 if is_peak[0] else 3 * np.pi / 2
-        # phi0 = target_phase - 2 * np.pi * F_x0
 
+        # Build a spline for the frequency as a function of position
         frequency_at_extrema = np.polyval(frequency_coeffs[::-1], extrema_positions)
         knots = np.linspace(extrema_positions[0], extrema_positions[-1], n_frequency)
         t = np.r_[[knots[0]] * degree, knots, [knots[-1]] * degree]
