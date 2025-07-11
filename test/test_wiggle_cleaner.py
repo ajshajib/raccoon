@@ -3,6 +3,7 @@
 """Tests for `raccoon` package."""
 
 import numpy as np
+import pytest
 from raccoon.wiggle_cleaner import WiggleCleaner
 
 
@@ -121,6 +122,28 @@ class TestWiggleCleaner:
         except Exception:
             pass
 
+    def test_model_full_fit_output_shape(self):
+        """Test model_full_fit returns arrays of correct shape and type."""
+        self.wc._amplitude_spline = DummySpline(np.ones(3))
+        self.wc._frequency_spline = DummySpline(np.ones(3))
+        self.wc._n_amplitude = 2
+        self.wc._n_frequency = 2
+        n_wave = self.wc._datacube.shape[0]
+        params = np.ones(12)
+        try:
+            model, signal, noise = self.wc.model_full_fit(params, 0, 0, 1)
+            assert isinstance(model, np.ndarray)
+            assert isinstance(signal, np.ndarray)
+            assert isinstance(noise, np.ndarray)
+            assert model.shape == (n_wave,)
+            assert signal.shape == (n_wave,)
+            assert noise.shape == (n_wave,)
+        except NotImplementedError:
+            pass
+        except Exception as e:
+            # Allow for partial implementations
+            assert False, f"Unexpected exception: {e}"
+
     def test_residual_vector_full_fit_explicit(self):
         """Explicitly test residual_vector_full_fit covers all lines and output
         shape."""
@@ -192,6 +215,23 @@ class TestWiggleCleaner:
             self.wc.get_model_uncertainty(params, np.eye(7), n_wave)
         except Exception:
             pass
+
+    def test_plot_model_runs(self):
+        """Test that plot_model runs without error or raises NotImplementedError."""
+        self.wc._amplitude_spline = DummySpline(np.ones(3))
+        self.wc._frequency_spline = DummySpline(np.ones(3))
+        self.wc._n_amplitude = 2
+        self.wc._n_frequency = 2
+        n_wave = self.wc._datacube.shape[0]
+        params = np.ones(12)
+        signal = np.ones(n_wave)
+        noise = np.ones(n_wave) * 0.1
+        try:
+            self.wc.plot_model(signal, noise, params)
+        except NotImplementedError:
+            pass
+        except Exception as e:
+            assert False, f"Unexpected exception: {e}"
 
     def test_get_wiggle_signal_and_get_spectra_set(self):
         """Test wiggle signal and spectra set retrieval."""
@@ -467,6 +507,61 @@ class TestWiggleCleaner:
         except Exception as e:
             # Allow for partial implementations
             assert False, f"Unexpected exception: {e}"
+
+    def test_get_model_selection_metric_all_modes(self):
+        """Test get_model_selection_metric for all supported metric modes and error
+        handling."""
+        n_wave = self.wc._datacube.shape[0]
+        signal = np.ones(n_wave)
+        noise = np.ones(n_wave) * 0.1
+        params = np.ones(7)
+        # Ensure n_amplitude and n_frequency are at least 2 for all metrics
+        self.wc._n_amplitude = 2
+        self.wc._n_frequency = 2
+        # params: n_amplitude + 2 (amplitude) + n_frequency + 2 (frequency) + 1 (phi_0)
+        n_a, n_f = self.wc._n_amplitude, self.wc._n_frequency
+        param_len = n_a + 2 + n_f + 2 + 1
+        params = np.ones(param_len)
+        # Patch splines for model selection metric test
+        self.wc._amplitude_spline = DummySpline(np.ones(n_a + 1))
+        self.wc._frequency_spline = DummySpline(np.ones(n_f + 1))
+        for metric in ["bic", "chi2"]:
+            result = self.wc.get_model_selection_metric(signal, noise, params, metric)
+            assert isinstance(result, float) or isinstance(result, np.floating)
+        # Test that unknown metric raises ValueError
+        with pytest.raises(ValueError):
+            self.wc.get_model_selection_metric(signal, noise, params, "unknown_metric")
+
+    def test_is_wiggle_detected_all_branches(self):
+        """Test is_wiggle_detected for all main branches and edge cases."""
+        # Typical case: params of correct length, signal and noise arrays
+        n_wave = self.wc._datacube.shape[0]
+        self.wc._n_amplitude = 2
+        self.wc._n_frequency = 2
+        n_a, n_f = self.wc._n_amplitude, self.wc._n_frequency
+        param_len = n_a + 2 + n_f + 2 + 1
+        params = np.ones(param_len)
+        signal = np.ones(n_wave)
+        noise = np.ones(n_wave) * 0.1
+        # Patch splines
+        self.wc._amplitude_spline = DummySpline(np.ones(n_a + 1))
+        self.wc._frequency_spline = DummySpline(np.ones(n_f + 1))
+        # Should return a bool or int (0/1)
+        result = self.wc.is_wiggle_detected(signal, noise, params)
+        assert isinstance(result, (bool, int, np.integer, np.bool_))
+        # Edge case: params with zeros
+        params_zeros = np.zeros(param_len)
+        result2 = self.wc.is_wiggle_detected(signal, noise, params_zeros)
+        assert isinstance(result2, (bool, int, np.integer, np.bool_))
+        # Edge case: signal with NaNs
+        signal_nan = np.ones(n_wave)
+        signal_nan[0] = np.nan
+        result3 = self.wc.is_wiggle_detected(signal_nan, noise, params)
+        assert isinstance(result3, (bool, int, np.integer, np.bool_))
+        # Edge case: noise with zeros (should not error)
+        noise_zeros = np.zeros(n_wave)
+        result4 = self.wc.is_wiggle_detected(signal, noise_zeros, params)
+        assert isinstance(result4, (bool, int, np.integer, np.bool_))
 
     # def test_fit_wiggle_smoke(self):
     #     """Smoke test for fit_wiggle: covers main branches, argument handling, and covariance extraction."""
