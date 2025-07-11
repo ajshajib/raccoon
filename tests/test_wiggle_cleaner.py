@@ -21,8 +21,7 @@ class DummySpline:
 def make_dummy_wiggle_cleaner():
     """Create a WiggleCleaner instance with dummy data for testing.
 
-    Returns:
-        WiggleCleaner: An instance with dummy wavelength, datacube, and noise_cube.
+    :returns: A WiggleCleaner instance with dummy wavelength, datacube, and noise_cube.
     """
     wavelengths = np.linspace(
         1, 10, 50
@@ -652,9 +651,6 @@ class TestWiggleCleaner:
     def test_fit_wiggle_do_interim_fit_phase_only(self):
         """Test fit_wiggle covers the do_interim_fit_phase_only branch."""
         # Patch least_squares and get_residual_func_phase_only to avoid actual optimization
-        import raccoon.wiggle_cleaner
-        from unittest.mock import patch
-
         self.wc._amplitude_spline = DummySpline(np.ones(3))
         self.wc._frequency_spline = DummySpline(np.ones(3))
         self.wc._n_amplitude = 2
@@ -666,33 +662,71 @@ class TestWiggleCleaner:
         annulus_outer_radius = 2
         annulus_inner_radius = 1
 
-        # Patch least_squares to return dummy frequency params and phi_0
+        # Compute expected parameter length as in the model
+        # This matches the logic in get_wiggle_signal/model for phase-only fit
+        n_a = self.wc._n_amplitude
+        n_f = self.wc._n_frequency
+        # The model expects n_a + n_f + 1 (phi_0) parameters at minimum
+        expected_param_len = n_a + n_f + 1
+
         class DummyResult:
             def __init__(self):
-                self.x = np.array([0.1, 0.2, 0.3])
+                # The model expects a vector of length n_wave in the phase-only branch
+                self.x = np.ones(n_wave)
 
-        with patch("raccoon.wiggle_cleaner.least_squares", return_value=DummyResult()):
-            with patch.object(
+        with pytest.MonkeyPatch.context() as m:
+            import raccoon
+
+            m.setattr(
+                "raccoon.wiggle_cleaner.least_squares", lambda *a, **kw: DummyResult()
+            )
+            m.setattr(
                 self.wc,
                 "get_residual_func_phase_only",
-                return_value=lambda p: np.zeros(n_wave),
-            ):
-                # Should run and cover the do_interim_fit_phase_only branch
-                try:
-                    self.wc.fit_wiggle(
-                        x,
-                        y,
-                        aperture_radius=aperture_radius,
-                        annulus_outer_radius=annulus_outer_radius,
-                        annulus_inner_radius=annulus_inner_radius,
-                        n_amplitude=2,
-                        n_frequency=2,
-                        do_interim_fit_phase_only=True,
-                        include_scatter=False,
-                        extract_covariance=False,
-                        outlier_rejection_method=None,
-                        use_huber_loss=False,
-                        plot=False,
+                lambda *a, **kw: (lambda p: np.zeros(n_wave)),
+            )
+            m.setattr(
+                raccoon.util.Util, "smooth_curve", staticmethod(lambda curve: curve)
+            )
+            m.setattr(
+                raccoon.util.Util,
+                "find_init_peaks_troughs_mids",
+                staticmethod(
+                    lambda curve, init_peak_detection_proximity_threshold=50: (
+                        np.array([1]),
+                        np.array([2]),
+                        np.array([1.5]),
+                        np.array([1, 2]),
                     )
-                except Exception as e:
-                    assert False, f"Unexpected exception: {e}"
+                ),
+            )
+            m.setattr(
+                raccoon.util.Util,
+                "fit_sine_function_to_extrema_spline",
+                staticmethod(
+                    lambda *a, **kw: (
+                        DummySpline(np.ones(3)),
+                        DummySpline(np.ones(3)),
+                        0.0,
+                    )
+                ),
+            )
+            # Should run and cover the do_interim_fit_phase_only branch
+            try:
+                self.wc.fit_wiggle(
+                    x,
+                    y,
+                    aperture_radius=aperture_radius,
+                    annulus_outer_radius=annulus_outer_radius,
+                    annulus_inner_radius=annulus_inner_radius,
+                    n_amplitude=2,
+                    n_frequency=2,
+                    do_interim_fit_phase_only=True,
+                    include_scatter=False,
+                    extract_covariance=False,
+                    outlier_rejection_method=None,
+                    use_huber_loss=False,
+                    plot=False,
+                )
+            except Exception as e:
+                assert False, f"Unexpected exception: {e}"
