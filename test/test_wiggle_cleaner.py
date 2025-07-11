@@ -112,15 +112,10 @@ class TestWiggleCleaner:
         self.wc._n_amplitude = 1
         self.wc._n_frequency = 1
         params = np.ones(7)
-        # These may raise exceptions depending on implementation, so catch them
-        try:
+        with pytest.raises(ValueError):
             self.wc.model_full_fit(params, 2, 2, 1)
-        except Exception:
-            pass
-        try:
+        with pytest.raises(ValueError):
             self.wc.residual_vector_full_fit(params, 2, 2, 1)
-        except Exception:
-            pass
 
     def test_model_full_fit_output_shape(self):
         """Test model_full_fit returns arrays of correct shape and type."""
