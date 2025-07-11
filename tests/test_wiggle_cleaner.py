@@ -3,7 +3,6 @@
 """Tests for `raccoon` package."""
 
 import numpy as np
-from astropy.io import fits
 import pytest
 from raccoon import WiggleCleaner
 
@@ -649,3 +648,51 @@ class TestWiggleCleaner:
             pass
         except Exception as e:
             assert False, f"Unexpected exception: {e}"
+
+    def test_fit_wiggle_do_interim_fit_phase_only(self):
+        """Test fit_wiggle covers the do_interim_fit_phase_only branch."""
+        # Patch least_squares and get_residual_func_phase_only to avoid actual optimization
+        import raccoon.wiggle_cleaner
+        from unittest.mock import patch
+
+        self.wc._amplitude_spline = DummySpline(np.ones(3))
+        self.wc._frequency_spline = DummySpline(np.ones(3))
+        self.wc._n_amplitude = 2
+        self.wc._n_frequency = 2
+        n_wave = self.wc._datacube.shape[0]
+        x = 0
+        y = 0
+        aperture_radius = 1
+        annulus_outer_radius = 2
+        annulus_inner_radius = 1
+
+        # Patch least_squares to return dummy frequency params and phi_0
+        class DummyResult:
+            def __init__(self):
+                self.x = np.array([0.1, 0.2, 0.3])
+
+        with patch("raccoon.wiggle_cleaner.least_squares", return_value=DummyResult()):
+            with patch.object(
+                self.wc,
+                "get_residual_func_phase_only",
+                return_value=lambda p: np.zeros(n_wave),
+            ):
+                # Should run and cover the do_interim_fit_phase_only branch
+                try:
+                    self.wc.fit_wiggle(
+                        x,
+                        y,
+                        aperture_radius=aperture_radius,
+                        annulus_outer_radius=annulus_outer_radius,
+                        annulus_inner_radius=annulus_inner_radius,
+                        n_amplitude=2,
+                        n_frequency=2,
+                        do_interim_fit_phase_only=True,
+                        include_scatter=False,
+                        extract_covariance=False,
+                        outlier_rejection_method=None,
+                        use_huber_loss=False,
+                        plot=False,
+                    )
+                except Exception as e:
+                    assert False, f"Unexpected exception: {e}"
