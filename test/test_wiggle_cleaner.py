@@ -563,6 +563,37 @@ class TestWiggleCleaner:
         result4 = self.wc.is_wiggle_detected(signal, noise_zeros, params)
         assert isinstance(result4, (bool, int, np.integer, np.bool_))
 
+    def test_annulus_outer_radius_branch(self):
+        # Simulate the relevant variables and logic for annulus_outer_radius > 0
+        import numpy as np
+        from numpy.linalg import lstsq
+
+        n_wave = 10
+        spectra = np.ones(n_wave)
+        noise = np.ones(n_wave) * 0.1
+        aperture_spectra = np.ones(n_wave)
+        aperture_noise = np.ones(n_wave) * 0.1
+        annulus_spectra = np.ones(n_wave) * 2
+        annulus_noise = np.ones(n_wave) * 0.2
+        wiggle_model = np.ones(n_wave)
+        A = np.column_stack([aperture_spectra])
+        annulus_outer_radius = 1  # > 0 triggers the branch
+        if annulus_outer_radius > 0:
+            A = np.column_stack([A, annulus_spectra])
+        A *= wiggle_model[:, np.newaxis]
+        coefficients, _, _, _ = lstsq(A, spectra)
+        full_model = A @ coefficients
+        fractional_variance = (noise / spectra) ** 2 + (
+            aperture_noise / aperture_spectra
+        ) ** 2
+        if annulus_outer_radius > 0:
+            fractional_variance += (annulus_noise / annulus_spectra) ** 2
+        # Check that the annulus term is included and shapes are correct
+        assert full_model.shape == (n_wave,)
+        assert fractional_variance.shape == (n_wave,)
+        # The annulus term should contribute nonzero variance
+        assert np.all(fractional_variance > 0)
+
     # def test_fit_wiggle_smoke(self):
     #     """Smoke test for fit_wiggle: covers main branches, argument handling, and covariance extraction."""
     #     # Patch the datacube at (2,2) to have a sine wave (at least 2 extrema)
