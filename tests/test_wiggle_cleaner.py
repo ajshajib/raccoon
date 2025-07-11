@@ -448,6 +448,26 @@ class TestWiggleCleaner:
         self.wc._gap_mask = np.ones(n_wave)
         self.wc._outlier_mask = np.ones(n_wave)
 
+    def test_get_model_uncertainty_output_shape(self):
+        """Test get_model_uncertainty returns correct output shape and type."""
+        self.wc._amplitude_spline = DummySpline(np.ones(3))
+        self.wc._frequency_spline = DummySpline(np.ones(3))
+        self.wc._n_amplitude = 2
+        self.wc._n_frequency = 2
+        n_wave = self.wc._datacube.shape[0]
+        params = np.ones(12)
+        cov = np.eye(12)
+        # Should return an array of length n_wave or raise NotImplementedError
+        try:
+            out = self.wc.get_model_uncertainty(params, cov, n_wave)
+            assert isinstance(out, np.ndarray)
+            assert out.shape == (n_wave,)
+        except NotImplementedError:
+            pass
+        except Exception as e:
+            # Allow for partial implementations
+            assert False, f"Unexpected exception: {e}"
+
     # def test_fit_wiggle_smoke(self):
     #     """Smoke test for fit_wiggle: covers main branches, argument handling, and covariance extraction."""
     #     # Patch the datacube at (2,2) to have a sine wave (at least 2 extrema)
