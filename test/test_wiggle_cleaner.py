@@ -275,10 +275,14 @@ class TestWiggleCleaner:
 
     def test_fit_wiggle_with_model_selection_raises_valueerror_on_missing_noise(self):
         """Test that fit_wiggle_with_model_selection raises ValueError if noise is not
-        set and specified_noise_level is 0."""
+        set and specified_noise_level is 0. Also patch tqdm to avoid notebook ImportError."""
+        # Patch tqdm in wiggle_cleaner to use the standard tqdm
+        import raccoon.wiggle_cleaner
+        import tqdm
+
+        raccoon.wiggle_cleaner.tqdm = tqdm.tqdm  # Use standard tqdm, not notebook
         self.wc._n_amplitude = 2
         self.wc._n_frequency = 2
-        n_wave = self.wc._datacube.shape[0]
         try:
             self.wc.fit_wiggle_with_model_selection(
                 2, 2, 1, 2, 1, 2, 2, specified_noise_level=0
@@ -291,9 +295,7 @@ class TestWiggleCleaner:
                 or "window_length must be less than or equal to the size of x" in msg
             )
         else:
-            assert (
-                False
-            ), "Expected ValueError for missing noise and specified_noise_level == 0"
+            assert False, "Expected ValueError for missing noise and specified_noise_level == 0"
 
     def test_is_wiggle_detected_and_clean_cube(self):
         """Test wiggle detection and cleaning of the data cube."""
@@ -628,8 +630,6 @@ class TestWiggleCleaner:
         import matplotlib
 
         matplotlib.use("Agg")  # Use non-interactive backend for testing
-        import matplotlib.pyplot as plt
-
         self.wc._amplitude_spline = DummySpline(np.ones(3))
         self.wc._frequency_spline = DummySpline(np.ones(3))
         self.wc._n_amplitude = 2
