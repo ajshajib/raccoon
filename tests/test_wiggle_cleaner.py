@@ -121,6 +121,28 @@ class TestWiggleCleaner:
         except Exception:
             pass
 
+    def test_model_full_fit_output_shape(self):
+        """Test model_full_fit returns arrays of correct shape and type."""
+        self.wc._amplitude_spline = DummySpline(np.ones(3))
+        self.wc._frequency_spline = DummySpline(np.ones(3))
+        self.wc._n_amplitude = 2
+        self.wc._n_frequency = 2
+        n_wave = self.wc._datacube.shape[0]
+        params = np.ones(12)
+        try:
+            model, signal, noise = self.wc.model_full_fit(params, 0, 0, 1)
+            assert isinstance(model, np.ndarray)
+            assert isinstance(signal, np.ndarray)
+            assert isinstance(noise, np.ndarray)
+            assert model.shape == (n_wave,)
+            assert signal.shape == (n_wave,)
+            assert noise.shape == (n_wave,)
+        except NotImplementedError:
+            pass
+        except Exception as e:
+            # Allow for partial implementations
+            assert False, f"Unexpected exception: {e}"
+
     def test_residual_vector_full_fit_explicit(self):
         """Explicitly test residual_vector_full_fit covers all lines and output
         shape."""
