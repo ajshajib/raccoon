@@ -483,3 +483,18 @@ class TestUtil:
         # The test passes if it runs without error and returns valid midpoints
         assert isinstance(mids, np.ndarray)
         assert mids.size > 0
+
+    def test_get_init_params_plot_branch(self):
+        """Explicitly cover the plot=True branch in get_init_params."""
+        x = np.linspace(0, 2 * np.pi, 100)
+        curve = np.sin(x)
+        scaled_wavelengths = (x - x.min()) / (x.max() - x.min())
+        # Should run without error and produce a plot (no assertion needed)
+        self.util.get_init_params(
+            curve,
+            scaled_wavelengths,
+            n_amplitude=2,
+            n_offset=2,
+            n_frequency=1,
+            plot=True,
+        )
