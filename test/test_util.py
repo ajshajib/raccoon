@@ -400,7 +400,8 @@ class TestUtil:
         assert np.allclose(y_fit, 1)
 
     def test_find_init_peaks_troughs_mids_extra_peak_at_end(self):
-        """Test branch where there is an extra peak at the end (len(peaks) > len(troughs))."""
+        """Test branch where there is an extra peak at the end (len(peaks) >
+        len(troughs))."""
         # Use a long, wide curve to avoid smoothing removing peaks
         curve = np.zeros(100)
         curve[20:23] = 1  # Peak 1 (broad)
