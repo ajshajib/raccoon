@@ -4,6 +4,7 @@
 
 import numpy.testing as npt
 import numpy as np
+import pytest
 
 from raccoon import util
 
@@ -27,12 +28,8 @@ class TestUtil:
 
     def test_polyval_empty_coeffs(self):
         # Should return 0 for empty coeffs, or handle gracefully
-        try:
-            result = util.polyval([], 5)
-            assert result == 0 or np.allclose(result, 0)
-        except Exception:
-            # Accept any error for empty input, as chebval([]) is not well-defined
-            pass
+        with pytest.raises(Exception):
+            util.polyval([], 5)
 
     def test_polyval_invalid(self):
         # Should handle non-numeric input gracefully: chebval returns array(['nan', 'nan'], dtype='<U3') for string input
@@ -130,6 +127,7 @@ class TestUtil:
         arr1 = np.array([1])
         arr2 = np.array([1, 2])
         # Should not raise, should return input or empty
+        # Avoid broad except: catch only expected exceptions or use pytest.raises
         try:
             out_empty = self.util.smooth_curve(empty)
             out1 = self.util.smooth_curve(arr1)
@@ -137,7 +135,8 @@ class TestUtil:
             assert out_empty.size == 0 or np.allclose(out_empty, 0)
             assert out1.size == 1
             assert out2.size == 2
-        except Exception:
+        except ValueError:
+            # Acceptable if smooth_curve raises ValueError for short input
             pass
 
     def test_lighter_smooth_curve(self):
