@@ -3,6 +3,7 @@
 """Tests for `raccoon` package."""
 
 import numpy as np
+import pytest
 from raccoon.wiggle_cleaner import WiggleCleaner
 
 
@@ -506,6 +507,29 @@ class TestWiggleCleaner:
         except Exception as e:
             # Allow for partial implementations
             assert False, f"Unexpected exception: {e}"
+
+    def test_get_model_selection_metric_all_modes(self):
+        """Test get_model_selection_metric for all supported metric modes and error handling."""
+        n_wave = self.wc._datacube.shape[0]
+        signal = np.ones(n_wave)
+        noise = np.ones(n_wave) * 0.1
+        params = np.ones(7)
+        # Ensure n_amplitude and n_frequency are at least 2 for all metrics
+        self.wc._n_amplitude = 2
+        self.wc._n_frequency = 2
+        # params: n_amplitude + 2 (amplitude) + n_frequency + 2 (frequency) + 1 (phi_0)
+        n_a, n_f = self.wc._n_amplitude, self.wc._n_frequency
+        param_len = n_a + 2 + n_f + 2 + 1
+        params = np.ones(param_len)
+        # Patch splines for model selection metric test
+        self.wc._amplitude_spline = DummySpline(np.ones(n_a + 1))
+        self.wc._frequency_spline = DummySpline(np.ones(n_f + 1))
+        for metric in ["bic", "chi2"]:
+            result = self.wc.get_model_selection_metric(signal, noise, params, metric)
+            assert isinstance(result, float) or isinstance(result, np.floating)
+        # Test that unknown metric raises ValueError
+        with pytest.raises(ValueError):
+            self.wc.get_model_selection_metric(signal, noise, params, "unknown_metric")
 
     # def test_fit_wiggle_smoke(self):
     #     """Smoke test for fit_wiggle: covers main branches, argument handling, and covariance extraction."""
