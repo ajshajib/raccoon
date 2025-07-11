@@ -428,3 +428,20 @@ class TestUtil:
         if len(peaks) > len(troughs):
             assert all_extrema[-1] == peaks[-1]
         # If not, smoothing may have removed a peak; skip assertion
+
+    def test_find_extrema_proximity_while_loop(self):
+        """Explicitly cover the while loop that removes close extrema by proximity threshold."""
+        # Three peaks close together, all within threshold
+        curve = np.zeros(100)
+        curve[10] = 1
+        curve[12] = 1
+        curve[14] = 1
+        curve[80] = 1  # Far peak
+        # Set threshold so only one of the close peaks remains
+        peaks = self.util.find_extrema(
+            curve, init_peak_detection_proximity_threshold=5, is_peak=True
+        )
+        # Only one of the close peaks (10,12,14) should remain, and the far one
+        assert len(peaks) == 2
+        assert np.any(np.abs(peaks - 12) <= 2)  # Surviving close peak is near 10/12/14
+        assert np.any(np.abs(peaks - 80) <= 2)
