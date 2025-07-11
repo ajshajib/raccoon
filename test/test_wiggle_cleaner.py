@@ -509,7 +509,8 @@ class TestWiggleCleaner:
             assert False, f"Unexpected exception: {e}"
 
     def test_get_model_selection_metric_all_modes(self):
-        """Test get_model_selection_metric for all supported metric modes and error handling."""
+        """Test get_model_selection_metric for all supported metric modes and error
+        handling."""
         n_wave = self.wc._datacube.shape[0]
         signal = np.ones(n_wave)
         noise = np.ones(n_wave) * 0.1
