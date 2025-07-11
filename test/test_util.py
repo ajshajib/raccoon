@@ -374,8 +374,10 @@ class TestUtil:
 
     def test_fitted_sine_function_spline_flat(self):
         x = np.linspace(0, 10 * np.pi, 500)
+
         def zero_spline(x):
             return np.zeros_like(x)
+
         y_fit = self.util.fitted_sine_function_spline(x, zero_spline, zero_spline, 0.0)
         # The function returns 1 + 0*sin(0 + 0) = 1 everywhere
         assert np.allclose(y_fit, 1)
