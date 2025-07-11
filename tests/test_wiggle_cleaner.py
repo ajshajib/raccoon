@@ -122,7 +122,8 @@ class TestWiggleCleaner:
             pass
 
     def test_residual_vector_full_fit_explicit(self):
-        """Explicitly test residual_vector_full_fit covers all lines and output shape."""
+        """Explicitly test residual_vector_full_fit covers all lines and output
+        shape."""
         # Mock model_full_fit to return known arrays
         arr = np.arange(10.0)
         self.wc.model_full_fit = lambda *a, **kw: (arr + 1, arr, np.ones_like(arr) * 2)
@@ -326,7 +327,8 @@ class TestWiggleCleaner:
         self.wc._outlier_mask = np.ones(n_wave)
 
     def test_cost_function_all_branches(self):
-        """Test cost_function covers all branches of residual_vector and returns a float."""
+        """Test cost_function covers all branches of residual_vector and returns a
+        float."""
         self.wc._amplitude_spline = DummySpline(np.ones(3))
         self.wc._frequency_spline = DummySpline(np.ones(3))
         self.wc._n_amplitude = 2
@@ -362,7 +364,8 @@ class TestWiggleCleaner:
         self.wc._outlier_mask = np.ones(n_wave)
 
     def test_get_residual_func_covers_residual_func(self):
-        """Test that the function returned by get_residual_func calls residual_vector and covers all branches."""
+        """Test that the function returned by get_residual_func calls residual_vector
+        and covers all branches."""
         self.wc._amplitude_spline = DummySpline(np.ones(3))
         self.wc._frequency_spline = DummySpline(np.ones(3))
         self.wc._n_amplitude = 2
@@ -398,7 +401,8 @@ class TestWiggleCleaner:
         self.wc._outlier_mask = np.ones(n_wave)
 
     def test_get_residual_func_phase_only_covers_residual_func(self):
-        """Test that the function returned by get_residual_func_phase_only covers all branches."""
+        """Test that the function returned by get_residual_func_phase_only covers all
+        branches."""
         self.wc._amplitude_spline = DummySpline(np.ones(3))
         self.wc._frequency_spline = DummySpline(np.ones(3))
         self.wc._n_amplitude = 2
