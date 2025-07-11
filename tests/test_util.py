@@ -430,7 +430,8 @@ class TestUtil:
         # If not, smoothing may have removed a peak; skip assertion
 
     def test_find_extrema_proximity_while_loop(self):
-        """Explicitly cover the while loop that removes close extrema by proximity threshold."""
+        """Explicitly cover the while loop that removes close extrema by proximity
+        threshold."""
         # Three peaks close together, all within threshold
         curve = np.zeros(100)
         curve[10] = 1
