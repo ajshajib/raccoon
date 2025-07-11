@@ -159,9 +159,6 @@ class Util(object):
 
         return peaks, troughs, midpoints, all_extrema
 
-    def get_modulatin_frequency_params(peaks, extrema):
-        return
-
     @classmethod
     def get_init_params(
         cls,

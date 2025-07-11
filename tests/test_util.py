@@ -446,3 +446,40 @@ class TestUtil:
         assert len(peaks) == 2
         assert np.any(np.abs(peaks - 12) <= 2)  # Surviving close peak is near 10/12/14
         assert np.any(np.abs(peaks - 80) <= 2)
+
+    def test_find_extrema_proximity_while_loop_multiple_iterations(self):
+        """Covers multiple iterations of the while loop removing close extrema."""
+        curve = np.zeros(100)
+        # Five close peaks, all within threshold
+        curve[10] = 1
+        curve[12] = 1
+        curve[14] = 1
+        curve[16] = 1
+        curve[18] = 1
+        curve[80] = 1  # Far peak
+        # Set threshold so only one of the close peaks remains
+        peaks = self.util.find_extrema(
+            curve, init_peak_detection_proximity_threshold=5, is_peak=True
+        )
+        # Only one of the close peaks (10,12,14,16,18) should remain, and the far one
+        assert len(peaks) == 2
+        assert np.any(
+            np.abs(peaks - 14) <= 4
+        )  # Surviving close peak is near the cluster
+        assert np.any(np.abs(peaks - 80) <= 2)
+
+    def test_find_init_peaks_troughs_mids_midpoint_a_greater_than_b(self):
+        """Explicitly cover the branch where a > b in midpoint calculation."""
+        # Construct a curve where the extrema are out of order for at least one pair
+        # This can be forced by creating peaks and troughs at known locations
+        curve = np.zeros(100)
+        curve[20:23] = 1  # Peak 1 (broad)
+        curve[50:53] = -1  # Trough (broad)
+        curve[40:43] = 1  # Peak 2 (broad, before trough)
+        # This will create a situation where, depending on the order, a > b for some (a, b)
+        peaks, troughs, mids, all_extrema = self.util.find_init_peaks_troughs_mids(
+            curve
+        )
+        # The test passes if it runs without error and returns valid midpoints
+        assert isinstance(mids, np.ndarray)
+        assert mids.size > 0
