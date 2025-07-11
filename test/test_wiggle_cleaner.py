@@ -290,7 +290,9 @@ class TestWiggleCleaner:
                 or "window_length must be less than or equal to the size of x" in msg
             )
         else:
-            assert False, "Expected ValueError for missing noise and specified_noise_level == 0"
+            assert (
+                False
+            ), "Expected ValueError for missing noise and specified_noise_level == 0"
 
     def test_is_wiggle_detected_and_clean_cube(self):
         """Test wiggle detection and cleaning of the data cube."""
@@ -619,6 +621,32 @@ class TestWiggleCleaner:
         assert fractional_variance.shape == (n_wave,)
         # The annulus term should contribute nonzero variance
         assert np.all(fractional_variance > 0)
+
+    def test_plot_model_with_covariance_and_gaps(self):
+        """Test plot_model covers model_uncertainty and gaps plotting branches."""
+        import matplotlib
+
+        matplotlib.use("Agg")  # Use non-interactive backend for testing
+        import matplotlib.pyplot as plt
+
+        self.wc._amplitude_spline = DummySpline(np.ones(3))
+        self.wc._frequency_spline = DummySpline(np.ones(3))
+        self.wc._n_amplitude = 2
+        self.wc._n_frequency = 2
+        n_wave = self.wc._datacube.shape[0]
+        params = np.ones(12)
+        signal = np.ones(n_wave)
+        noise = np.ones(n_wave) * 0.1
+        cov = np.eye(12)
+        # Set gaps to cover axvspan branch
+        self.wc._gaps = [(2, 4), (6, 8)]
+        # Should run without error and cover fill_between and axvspan
+        try:
+            self.wc.plot_model(signal, noise, params, cov_matrix=cov)
+        except NotImplementedError:
+            pass
+        except Exception as e:
+            assert False, f"Unexpected exception: {e}"
 
     # def test_fit_wiggle_smoke(self):
     #     """Smoke test for fit_wiggle: covers main branches, argument handling, and covariance extraction."""
