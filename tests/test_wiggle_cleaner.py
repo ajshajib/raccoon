@@ -662,13 +662,6 @@ class TestWiggleCleaner:
         annulus_outer_radius = 2
         annulus_inner_radius = 1
 
-        # Compute expected parameter length as in the model
-        # This matches the logic in get_wiggle_signal/model for phase-only fit
-        n_a = self.wc._n_amplitude
-        n_f = self.wc._n_frequency
-        # The model expects n_a + n_f + 1 (phi_0) parameters at minimum
-        expected_param_len = n_a + n_f + 1
-
         class DummyResult:
             def __init__(self):
                 # The model expects a vector of length n_wave in the phase-only branch
