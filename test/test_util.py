@@ -22,6 +22,7 @@ class TestUtil:
         val = util.polyval(coeffs, x)
         # Should match chebval
         from numpy.polynomial.chebyshev import chebval as np_chebval
+
         assert np.isclose(val, np_chebval(x, coeffs))
 
     def test_polyval_empty_coeffs(self):
@@ -35,12 +36,12 @@ class TestUtil:
 
     def test_polyval_invalid(self):
         # Should handle non-numeric input gracefully: chebval returns array(['nan', 'nan'], dtype='<U3') for string input
-        result = util.polyval(['a', 'b'], 1)
+        result = util.polyval(["a", "b"], 1)
         # Accept nan, or string nan, or any error
         try:
             # If result is a string array, check for 'nan' string
-            if isinstance(result, np.ndarray) and result.dtype.kind in {'U', 'S'}:
-                assert all(str(x).lower() == 'nan' for x in result)
+            if isinstance(result, np.ndarray) and result.dtype.kind in {"U", "S"}:
+                assert all(str(x).lower() == "nan" for x in result)
             else:
                 assert np.isnan(result)
         except Exception:
@@ -74,12 +75,12 @@ class TestUtil:
         assert np.all(np.diff(troughs) >= 50)
         # Peaks should be near local maxima, troughs near minima (allow for smoothing)
         for p in peaks:
-            left = max(p-1,0)
-            right = min(p+1,len(curve)-1)
+            left = max(p - 1, 0)
+            right = min(p + 1, len(curve) - 1)
             assert curve[p] >= min(curve[left], curve[right])
         for t in troughs:
-            left = max(t-1,0)
-            right = min(t+1,len(curve)-1)
+            left = max(t - 1, 0)
+            right = min(t + 1, len(curve) - 1)
             assert curve[t] <= max(curve[left], curve[right])
 
     def test_find_extrema_flat(self):
@@ -108,7 +109,9 @@ class TestUtil:
         curve[10] = 1
         curve[12] = 1
         curve[80] = 1
-        peaks = self.util.find_extrema(curve, init_peak_detection_proximity_threshold=3, is_peak=True)
+        peaks = self.util.find_extrema(
+            curve, init_peak_detection_proximity_threshold=3, is_peak=True
+        )
         # Only one of the close peaks should remain, and the far one (allow for smoothing offset)
         assert len(peaks) == 2
         assert np.any(np.abs(peaks - 11) <= 1)  # One peak near 10/12
@@ -220,7 +223,12 @@ class TestUtil:
         n_frequency = 1
         try:
             amp, off, freq, phi = self.util.fit_sine_function_to_extrema(
-                extrema_positions, extrema_vals, is_peak, n_amplitude, n_offset, n_frequency
+                extrema_positions,
+                extrema_vals,
+                is_peak,
+                n_amplitude,
+                n_offset,
+                n_frequency,
             )
             assert isinstance(amp, np.ndarray)
             assert isinstance(off, np.ndarray)
@@ -234,7 +242,12 @@ class TestUtil:
         curve = np.sin(x)
         scaled_wavelengths = (x - x.min()) / (x.max() - x.min())
         freq, amp, offset, phi = self.util.get_init_params(
-            curve, scaled_wavelengths, n_amplitude=2, n_offset=2, n_frequency=1, plot=False
+            curve,
+            scaled_wavelengths,
+            n_amplitude=2,
+            n_offset=2,
+            n_frequency=1,
+            plot=False,
         )
         assert isinstance(freq, np.ndarray)
         assert isinstance(amp, np.ndarray)
@@ -341,8 +354,14 @@ class TestUtil:
         extrema_vals = np.array([1.0])
         is_peak = np.array([True])
         try:
-            amp_spline, freq_spline, phi_0 = self.util.fit_sine_function_to_extrema_spline(
-                extrema_positions, extrema_vals, is_peak, n_amplitude=4, n_frequency=3
+            amp_spline, freq_spline, phi_0 = (
+                self.util.fit_sine_function_to_extrema_spline(
+                    extrema_positions,
+                    extrema_vals,
+                    is_peak,
+                    n_amplitude=4,
+                    n_frequency=3,
+                )
             )
             x = np.linspace(0, 10 * np.pi, 500)
             amp_eval = amp_spline(x)
