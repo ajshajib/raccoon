@@ -215,6 +215,23 @@ class TestWiggleCleaner:
         except Exception:
             pass
 
+    def test_plot_model_runs(self):
+        """Test that plot_model runs without error or raises NotImplementedError."""
+        self.wc._amplitude_spline = DummySpline(np.ones(3))
+        self.wc._frequency_spline = DummySpline(np.ones(3))
+        self.wc._n_amplitude = 2
+        self.wc._n_frequency = 2
+        n_wave = self.wc._datacube.shape[0]
+        params = np.ones(12)
+        signal = np.ones(n_wave)
+        noise = np.ones(n_wave) * 0.1
+        try:
+            self.wc.plot_model(signal, noise, params)
+        except NotImplementedError:
+            pass
+        except Exception as e:
+            assert False, f"Unexpected exception: {e}"
+
     def test_get_wiggle_signal_and_get_spectra_set(self):
         """Test wiggle signal and spectra set retrieval."""
         try:
