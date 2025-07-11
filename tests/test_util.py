@@ -488,11 +488,10 @@ class TestUtil:
         """Explicitly cover the plot=True branch in get_init_params."""
         x = np.linspace(0, 2 * np.pi, 100)
         curve = np.sin(x)
-        scaled_wavelengths = (x - x.min()) / (x.max() - x.min())
         # Should run without error and produce a plot (no assertion needed)
         self.util.get_init_params(
             curve,
-            scaled_wavelengths,
+            x,
             n_amplitude=2,
             n_offset=2,
             n_frequency=1,
@@ -514,3 +513,12 @@ class TestUtil:
         # Check that the output is as expected for constant coefficients
         expected = 1 + 1.0 * np.sin(2.0 * x) + 0.5
         assert np.allclose(y, expected)
+
+    def test_get_init_params_spline_plot_branch(self):
+        """Explicitly cover the plot=True branch in get_init_params_spline."""
+        x = np.linspace(0, 10 * np.pi, 500)
+        curve = np.sin(x)
+        # Should run without error and produce plots (no assertion needed)
+        self.util.get_init_params_spline(
+            curve, x, n_amplitude=4, n_frequency=3, plot=True
+        )
