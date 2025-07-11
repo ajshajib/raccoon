@@ -498,3 +498,19 @@ class TestUtil:
             n_frequency=1,
             plot=True,
         )
+
+    def test_fitted_sine_function(self):
+        """Test Util.fitted_sine_function for output type, shape, and values."""
+        x = np.linspace(0, 2 * np.pi, 100)
+        amp_coeffs = np.array([1.0])  # constant amplitude
+        offset_coeffs = np.array([0.5])  # constant offset
+        freq_coeffs = np.array([2.0])  # constant frequency
+        phi_0 = 0.0
+        y = self.util.fitted_sine_function(
+            x, amp_coeffs, offset_coeffs, freq_coeffs, phi_0
+        )
+        assert isinstance(y, np.ndarray)
+        assert y.shape == x.shape
+        # Check that the output is as expected for constant coefficients
+        expected = 1 + 1.0 * np.sin(2.0 * x) + 0.5
+        assert np.allclose(y, expected)
