@@ -10,3 +10,7 @@ ignore:
   - "setup.py"
   - "tests/*.py"
   - "tests/**/*.py"
+  - "test_*.py"
+  - "*/test_*.py"
+  - "*/tests/*.py"
+  - "*/tests/**/*.py"
