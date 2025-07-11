@@ -531,6 +531,37 @@ class TestWiggleCleaner:
         with pytest.raises(ValueError):
             self.wc.get_model_selection_metric(signal, noise, params, "unknown_metric")
 
+    def test_is_wiggle_detected_all_branches(self):
+        """Test is_wiggle_detected for all main branches and edge cases."""
+        # Typical case: params of correct length, signal and noise arrays
+        n_wave = self.wc._datacube.shape[0]
+        self.wc._n_amplitude = 2
+        self.wc._n_frequency = 2
+        n_a, n_f = self.wc._n_amplitude, self.wc._n_frequency
+        param_len = n_a + 2 + n_f + 2 + 1
+        params = np.ones(param_len)
+        signal = np.ones(n_wave)
+        noise = np.ones(n_wave) * 0.1
+        # Patch splines
+        self.wc._amplitude_spline = DummySpline(np.ones(n_a + 1))
+        self.wc._frequency_spline = DummySpline(np.ones(n_f + 1))
+        # Should return a bool or int (0/1)
+        result = self.wc.is_wiggle_detected(signal, noise, params)
+        assert isinstance(result, (bool, int, np.integer, np.bool_))
+        # Edge case: params with zeros
+        params_zeros = np.zeros(param_len)
+        result2 = self.wc.is_wiggle_detected(signal, noise, params_zeros)
+        assert isinstance(result2, (bool, int, np.integer, np.bool_))
+        # Edge case: signal with NaNs
+        signal_nan = np.ones(n_wave)
+        signal_nan[0] = np.nan
+        result3 = self.wc.is_wiggle_detected(signal_nan, noise, params)
+        assert isinstance(result3, (bool, int, np.integer, np.bool_))
+        # Edge case: noise with zeros (should not error)
+        noise_zeros = np.zeros(n_wave)
+        result4 = self.wc.is_wiggle_detected(signal, noise_zeros, params)
+        assert isinstance(result4, (bool, int, np.integer, np.bool_))
+
     # def test_fit_wiggle_smoke(self):
     #     """Smoke test for fit_wiggle: covers main branches, argument handling, and covariance extraction."""
     #     # Patch the datacube at (2,2) to have a sine wave (at least 2 extrema)
