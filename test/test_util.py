@@ -184,3 +184,20 @@ class TestUtil:
         # Check that the output is finite and not constant
         assert np.all(np.isfinite(y_fit))
         assert np.std(y_fit) > 0.01
+
+    def test_find_extrema_proximity_threshold(self):
+        # Create a curve with two close peaks
+        curve = np.zeros(100)
+        curve[10] = 1
+        curve[12] = 1  # Two peaks within threshold
+        curve[80] = 1  # One far peak
+        # Set threshold so that 10 and 12 are considered too close
+        peaks = self.util.find_extrema(
+            curve, init_peak_detection_proximity_threshold=3, is_peak=True
+        )
+        # Only one of the close peaks should remain, and the far one (allow for smoothing offset)
+        assert len(peaks) == 2
+        assert np.any(np.abs(peaks - 11) <= 1)  # One peak near 10/12
+        assert np.any(np.abs(peaks - 80) <= 2) or np.any(
+            np.abs(peaks - 81) <= 2
+        )  # One peak near 80
