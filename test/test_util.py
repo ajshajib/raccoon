@@ -176,6 +176,24 @@ class TestUtil:
             all_extrema, np.array([23, 74, 124, 174, 224, 273, 323, 373, 423, 474])
         )
 
+    def test_find_init_peaks_troughs_mids_proximity_threshold(self):
+        """Test that close extrema are removed by proximity threshold logic."""
+        from raccoon.util import Util
+
+        # Create a curve with two close peaks and one far
+        curve = np.zeros(100)
+        curve[10] = 1
+        curve[12] = 1  # Close to 10, should be removed
+        curve[80] = 1  # Far from others, should remain
+        # Use a proximity threshold that will remove one of the close peaks
+        peaks, troughs, mids, extrema = Util.find_init_peaks_troughs_mids(
+            curve, init_peak_detection_proximity_threshold=3
+        )
+        # Only one of the close peaks should remain, and the far one
+        assert len(peaks) == 2
+        assert np.any(np.abs(peaks - 10) <= 1) or np.any(np.abs(peaks - 12) <= 1)
+        assert np.any(np.abs(peaks - 80) <= 1)
+
     def test_get_linear_freq_coeffs_from_extrema(self):
         extrema = np.array([10, 30, 50, 70, 90])
         xs = np.linspace(0, 1, 100)
