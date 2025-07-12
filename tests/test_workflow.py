@@ -308,7 +308,8 @@ class TestWorkflow:
         assert cleaned_map.shape == self.data_cube[0].shape
 
     def test_clean_cube_with_wiggle_detection_thresholds(self):
-        """Test clean_cube with wiggle_detection_sigma_threshold and wiggle_detection_variance_ratio_threshold."""
+        """Test clean_cube with wiggle_detection_sigma_threshold and
+        wiggle_detection_variance_ratio_threshold."""
         aperture_radius = 4
         annulus_outer_radius = 5
         annulus_inner_radius = 3
