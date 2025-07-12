@@ -1248,7 +1248,7 @@ class WiggleCleaner(object):
         huber_delta=1.35,
         fdr_alpha=0.01,
         fdr_outlier_max_fraction=0.1,
-        sigma_clip=5,
+        sigma_clip_sigma=5,
         sigma_clip_max_iterations=3,
         symmetric_sharpening=False,
         asymmetric_sharpening=False,
@@ -1283,8 +1283,8 @@ class WiggleCleaner(object):
         :type plot: bool
         :param selection_criteria: Selection criteria, "bic" or "chi2"
         :type selection_criteria: str
-        :param sigma_clip: Sigma clip threshold
-        :type sigma_clip: float
+        :param sigma_clip_sigma: Sigma clip threshold
+        :type sigma_clip_sigma: float
         :param sigma_clip_max_iterations: Number of sigma clip iterations
         :type sigma_clip_max_iterations: int
         :param combine_bic_weighted: If True, combine the BIC weighted by the number of
@@ -1362,7 +1362,7 @@ class WiggleCleaner(object):
                     huber_delta=huber_delta,
                     fdr_alpha=fdr_alpha,
                     fdr_outlier_max_fraction=fdr_outlier_max_fraction,
-                    sigma_clip_sigma=sigma_clip,
+                    sigma_clip_sigma=sigma_clip_sigma,
                     sigma_clip_max_iterations=sigma_clip_max_iterations,
                     symmetric_sharpening=symmetric_sharpening,
                     asymmetric_sharpening=asymmetric_sharpening,
@@ -1416,7 +1416,7 @@ class WiggleCleaner(object):
             huber_delta=huber_delta,
             fdr_alpha=fdr_alpha,
             fdr_outlier_max_fraction=fdr_outlier_max_fraction,
-            sigma_clip_sigma=sigma_clip,
+            sigma_clip_sigma=sigma_clip_sigma,
             sigma_clip_max_iterations=sigma_clip_max_iterations,
             symmetric_sharpening=symmetric_sharpening,
             asymmetric_sharpening=asymmetric_sharpening,
@@ -1720,13 +1720,18 @@ class WiggleCleaner(object):
                         cleaned_mask[i, j] = 1
 
                         if min_n_amplitude is None or min_n_frequency is None:
-                            if not (
-                                n_amplitude_for_detection == n_amplitude
-                                and n_frequency_for_detection == n_frequency
+                            # performing model fitting with the specified n_amplitude and n_frequency,
+                            # if they are not equal to n_amplitude_for_detection and n_frequency_for_detection
+                            if (
+                                n_amplitude_for_detection != n_amplitude
+                                or n_frequency_for_detection != n_frequency
                             ):
                                 result_params, cov_matrix = self.fit_wiggle(
-                                    wiggle_signal,
-                                    wiggle_noise,
+                                    i,
+                                    j,
+                                    aperture_radius=aperture_radius,
+                                    annulus_outer_radius=annulus_outer_radius,
+                                    annulus_inner_radius=annulus_inner_radius,
                                     n_amplitude=n_amplitude,
                                     n_frequency=n_frequency,
                                     specified_noise_level=specified_noise_level,
@@ -1742,14 +1747,18 @@ class WiggleCleaner(object):
                                     sigma_clip_max_iterations=sigma_clip_max_iterations,
                                     symmetric_sharpening=symmetric_sharpening,
                                     asymmetric_sharpening=asymmetric_sharpening,
-                                    plot=False,
+                                    plot=plot,
                                     fit_full_model=fit_full_model,
                                 )
                         else:
+                            # performing model selection as min_n_amplitude and min_n_frequency are set
                             result_params, cov_matrix = (
                                 self.fit_wiggle_with_model_selection(
-                                    wiggle_signal,
-                                    wiggle_noise,
+                                    i,
+                                    j,
+                                    aperture_radius=aperture_radius,
+                                    annulus_outer_radius=annulus_outer_radius,
+                                    annulus_inner_radius=annulus_inner_radius,
                                     n_amplitude=n_amplitude,
                                     n_frequency=n_frequency,
                                     min_n_amplitude=min_n_amplitude,
