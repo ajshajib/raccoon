@@ -100,6 +100,8 @@ class TestWorkflow:
 
     def test_fit_wiggle_with_model_selection(self):
         aperture_radius = 4
+
+        # with bic
         self.wcleaner.fit_wiggle_with_model_selection(
             15,  # quasar_x
             15,  # quasar_y
@@ -116,6 +118,54 @@ class TestWorkflow:
             include_scatter=False,
             outlier_rejection_method="fdr",
             use_huber_loss=False,
+            fdr_alpha=0.01,
+            fdr_outlier_max_fraction=0.10,
+            extract_covariance=True,
+            fit_full_model=True,
+        )
+
+        # with chi2
+        self.wcleaner.fit_wiggle_with_model_selection(
+            15,  # quasar_x
+            15,  # quasar_y
+            aperture_radius=aperture_radius,
+            annulus_outer_radius=aperture_radius + 1,
+            annulus_inner_radius=aperture_radius - 1,
+            plot=False,
+            n_amplitude=5,
+            n_frequency=3,
+            min_n_amplitude=5,
+            min_n_frequency=2,
+            selection_criteria="chi2",
+            init_peak_detection_proximity_threshold=200,
+            include_scatter=False,
+            outlier_rejection_method="fdr",
+            use_huber_loss=False,
+            fdr_alpha=0.01,
+            fdr_outlier_max_fraction=0.10,
+            extract_covariance=True,
+            fit_full_model=True,
+        )
+
+        # with sigma_clip
+        self.wcleaner.fit_wiggle_with_model_selection(
+            15,  # quasar_x
+            15,  # quasar_y
+            aperture_radius=aperture_radius,
+            annulus_outer_radius=aperture_radius + 1,
+            annulus_inner_radius=aperture_radius - 1,
+            plot=False,
+            n_amplitude=5,
+            n_frequency=3,
+            min_n_amplitude=5,
+            min_n_frequency=2,
+            selection_criteria="bic",
+            init_peak_detection_proximity_threshold=200,
+            include_scatter=False,
+            outlier_rejection_method="sigma_clip",
+            sigma_clip=3,
+            sigma_clip_max_iterations=2,
+            use_huber_loss=True,
             fdr_alpha=0.01,
             fdr_outlier_max_fraction=0.10,
             extract_covariance=True,
