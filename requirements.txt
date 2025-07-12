@@ -1,6 +1,6 @@
-numpy
-scipy
-matplotlib
-tqdm
-astropy
-statsmodels
+numpy>=1.21
+scipy>=1.7
+matplotlib>=3.4
+tqdm>=4.62
+astropy>=4.3
+statsmodels>=0.13
