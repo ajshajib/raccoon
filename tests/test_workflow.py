@@ -1,6 +1,15 @@
 import numpy as np
 from astropy.io import fits
 from raccoon import WiggleCleaner
+import pytest
+
+
+class DummySpline:
+    def __init__(self, c):
+        self.c = c
+
+    def __call__(self, x):
+        return np.ones_like(x)
 
 
 class TestWorkflow:
@@ -73,11 +82,9 @@ class TestWorkflow:
             aperture_radius=aperture_radius,
             annulus_outer_radius=annulus_outer_radius,
             annulus_inner_radius=annulus_inner_radius,
-            plot=False,
             n_amplitude=8,
             n_frequency=5,
             init_peak_detection_proximity_threshold=30,
-            verbose=False,
             use_huber_loss=False,
             outlier_rejection_method="fdr",
             fdr_alpha=0.05,
@@ -85,19 +92,23 @@ class TestWorkflow:
             extract_covariance=True,
             fit_full_model=True,
             include_scatter=False,
+            verbose=True,
+            plot=True,
         )
         assert isinstance(result_params, tuple)
         assert isinstance(result_params[0], np.ndarray)
 
     def test_fit_wiggle_with_model_selection(self):
         aperture_radius = 4
+
+        # with bic
         self.wcleaner.fit_wiggle_with_model_selection(
             15,  # quasar_x
             15,  # quasar_y
             aperture_radius=aperture_radius,
             annulus_outer_radius=aperture_radius + 1,
             annulus_inner_radius=aperture_radius - 1,
-            plot=False,
+            plot=True,
             n_amplitude=5,
             n_frequency=3,
             min_n_amplitude=5,
@@ -112,6 +123,104 @@ class TestWorkflow:
             extract_covariance=True,
             fit_full_model=True,
         )
+
+        # with chi2
+        self.wcleaner.fit_wiggle_with_model_selection(
+            15,  # quasar_x
+            15,  # quasar_y
+            aperture_radius=aperture_radius,
+            annulus_outer_radius=aperture_radius + 1,
+            annulus_inner_radius=aperture_radius - 1,
+            plot=False,
+            n_amplitude=5,
+            n_frequency=3,
+            min_n_amplitude=5,
+            min_n_frequency=2,
+            selection_criteria="chi2",
+            init_peak_detection_proximity_threshold=200,
+            include_scatter=False,
+            outlier_rejection_method="fdr",
+            use_huber_loss=False,
+            fdr_alpha=0.01,
+            fdr_outlier_max_fraction=0.10,
+            extract_covariance=True,
+            fit_full_model=True,
+        )
+
+        # with sigma_clip
+        self.wcleaner.fit_wiggle_with_model_selection(
+            15,  # quasar_x
+            15,  # quasar_y
+            aperture_radius=aperture_radius,
+            annulus_outer_radius=aperture_radius + 1,
+            annulus_inner_radius=aperture_radius - 1,
+            plot=False,
+            n_amplitude=5,
+            n_frequency=3,
+            min_n_amplitude=5,
+            min_n_frequency=2,
+            selection_criteria="bic",
+            init_peak_detection_proximity_threshold=200,
+            include_scatter=False,
+            outlier_rejection_method="sigma_clip",
+            sigma_clip=3,
+            sigma_clip_max_iterations=2,
+            use_huber_loss=True,
+            fdr_alpha=0.01,
+            fdr_outlier_max_fraction=0.10,
+            extract_covariance=True,
+            fit_full_model=True,
+        )
+
+        with pytest.raises(ValueError):
+            self.wcleaner.fit_wiggle_with_model_selection(
+                15,  # quasar_x
+                15,  # quasar_y
+                aperture_radius=aperture_radius,
+                annulus_outer_radius=aperture_radius + 1,
+                annulus_inner_radius=aperture_radius - 1,
+                plot=False,
+                n_amplitude=5,
+                n_frequency=3,
+                min_n_amplitude=5,
+                min_n_frequency=1,
+                selection_criteria="bic",
+                init_peak_detection_proximity_threshold=200,
+                include_scatter=False,
+                outlier_rejection_method="sigma_clip",
+                sigma_clip=3,
+                sigma_clip_max_iterations=2,
+                use_huber_loss=True,
+                fdr_alpha=0.01,
+                fdr_outlier_max_fraction=0.10,
+                extract_covariance=True,
+                fit_full_model=True,
+            )
+
+        with pytest.raises(ValueError):
+            self.wcleaner.fit_wiggle_with_model_selection(
+                15,  # quasar_x
+                15,  # quasar_y
+                aperture_radius=aperture_radius,
+                annulus_outer_radius=aperture_radius + 1,
+                annulus_inner_radius=aperture_radius - 1,
+                plot=False,
+                n_amplitude=5,
+                n_frequency=3,
+                min_n_amplitude=1,
+                min_n_frequency=2,
+                selection_criteria="bic",
+                init_peak_detection_proximity_threshold=200,
+                include_scatter=False,
+                outlier_rejection_method="sigma_clip",
+                sigma_clip=3,
+                sigma_clip_max_iterations=2,
+                use_huber_loss=True,
+                fdr_alpha=0.01,
+                fdr_outlier_max_fraction=0.10,
+                extract_covariance=True,
+                fit_full_model=True,
+            )
 
     def test_clean_cube(self):
         aperture_radius = 4
@@ -139,7 +248,7 @@ class TestWorkflow:
             annulus_outer_radius=annulus_outer_radius,
             annulus_inner_radius=annulus_inner_radius,
             plot=False,
-            verbose=False,
+            verbose=True,
             extract_uncertainty=True,
             include_scatter=False,
             outlier_rejection_method="fdr",
@@ -153,3 +262,142 @@ class TestWorkflow:
         assert cleaned_cube.shape == self.data_cube.shape
         assert cleaned_noise_cube.shape == self.data_cube.shape
         assert cleaned_map.shape == self.data_cube[0].shape
+
+        cleaned_cube, cleaned_noise_cube, cleaned_map = self.wcleaner.clean_cube(
+            wiggle_detection_sigma_threshold=5.0,
+            wiggle_detection_variance_ratio_threshold=0.2,
+            n_amplitude=10,
+            n_frequency=7,
+            fit_full_model=True,
+            min_n_amplitude=None,
+            min_n_frequency=None,
+            n_amplitude_for_detection=10,
+            n_frequency_for_detection=7,
+            cleaning_mask=mask,
+            init_peak_detection_proximity_threshold=200,
+            aperture_radius=aperture_radius,
+            annulus_outer_radius=annulus_outer_radius,
+            annulus_inner_radius=annulus_inner_radius,
+            plot=False,
+            verbose=True,
+            extract_uncertainty=True,
+            include_scatter=False,
+            outlier_rejection_method="fdr",
+            use_huber_loss=False,
+            fdr_alpha=0.01,
+            fdr_outlier_max_fraction=0.15,
+            sigma_clip_sigma=3,
+            sigma_clip_max_iterations=20,
+            num_samples_uncertainty_region=1000,
+        )
+        assert cleaned_cube.shape == self.data_cube.shape
+        assert cleaned_noise_cube.shape == self.data_cube.shape
+        assert cleaned_map.shape == self.data_cube[0].shape
+
+    def test_fit_wiggle_with_scatter(self):
+        """Test that fit_wiggle covers scatter and sharpening parameter branches."""
+        # Use a small cube and patch Util methods to avoid real fitting
+        aperture_radius = 4
+        annulus_outer_radius = 5
+        annulus_inner_radius = 3
+        result_params = self.wcleaner.fit_wiggle(
+            x=self.quasar_x,
+            y=self.quasar_y,
+            aperture_radius=aperture_radius,
+            annulus_outer_radius=annulus_outer_radius,
+            annulus_inner_radius=annulus_inner_radius,
+            plot=False,
+            n_amplitude=8,
+            n_frequency=5,
+            init_peak_detection_proximity_threshold=30,
+            verbose=False,
+            use_huber_loss=False,
+            outlier_rejection_method="fdr",
+            fdr_alpha=0.05,
+            fdr_outlier_max_fraction=0.2,
+            extract_covariance=True,
+            fit_full_model=True,
+            include_scatter=True,
+        )
+        assert isinstance(result_params, tuple)
+        assert isinstance(result_params[0], np.ndarray)
+
+    def test_fit_wiggle_with_sharpening(self):
+        """Test that fit_wiggle covers scatter and sharpening parameter branches."""
+        # Use a small cube and patch Util methods to avoid real fitting
+        aperture_radius = 4
+        annulus_outer_radius = 5
+        annulus_inner_radius = 3
+
+        # asymmetric sharpening only
+        result_params = self.wcleaner.fit_wiggle(
+            x=self.quasar_x,
+            y=self.quasar_y,
+            aperture_radius=aperture_radius,
+            annulus_outer_radius=annulus_outer_radius,
+            annulus_inner_radius=annulus_inner_radius,
+            plot=False,
+            n_amplitude=8,
+            n_frequency=5,
+            init_peak_detection_proximity_threshold=30,
+            verbose=False,
+            use_huber_loss=False,
+            outlier_rejection_method="fdr",
+            fdr_alpha=0.05,
+            fdr_outlier_max_fraction=0.2,
+            extract_covariance=True,
+            fit_full_model=True,
+            include_scatter=True,
+            asymmetric_sharpening=True,
+        )
+        assert isinstance(result_params, tuple)
+        assert isinstance(result_params[0], np.ndarray)
+
+        # symmetric sharpening only
+        result_params = self.wcleaner.fit_wiggle(
+            x=self.quasar_x,
+            y=self.quasar_y,
+            aperture_radius=aperture_radius,
+            annulus_outer_radius=annulus_outer_radius,
+            annulus_inner_radius=annulus_inner_radius,
+            plot=False,
+            n_amplitude=8,
+            n_frequency=5,
+            init_peak_detection_proximity_threshold=30,
+            verbose=False,
+            use_huber_loss=False,
+            outlier_rejection_method="fdr",
+            fdr_alpha=0.05,
+            fdr_outlier_max_fraction=0.2,
+            extract_covariance=True,
+            fit_full_model=True,
+            include_scatter=True,
+            asymmetric_sharpening=True,
+        )
+        assert isinstance(result_params, tuple)
+        assert isinstance(result_params[0], np.ndarray)
+
+        # both symmetric and asymmetric sharpening
+        result_params = self.wcleaner.fit_wiggle(
+            x=self.quasar_x,
+            y=self.quasar_y,
+            aperture_radius=aperture_radius,
+            annulus_outer_radius=annulus_outer_radius,
+            annulus_inner_radius=annulus_inner_radius,
+            plot=False,
+            n_amplitude=8,
+            n_frequency=5,
+            init_peak_detection_proximity_threshold=30,
+            verbose=False,
+            use_huber_loss=False,
+            outlier_rejection_method="fdr",
+            fdr_alpha=0.05,
+            fdr_outlier_max_fraction=0.2,
+            extract_covariance=True,
+            fit_full_model=True,
+            include_scatter=True,
+            asymmetric_sharpening=True,
+            symmetric_sharpening=True,
+        )
+        assert isinstance(result_params, tuple)
+        assert isinstance(result_params[0], np.ndarray)

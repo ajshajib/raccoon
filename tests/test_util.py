@@ -484,6 +484,22 @@ class TestUtil:
         assert isinstance(mids, np.ndarray)
         assert mids.size > 0
 
+    def test_find_init_peaks_troughs_mids_midpoint_swap_branch(self):
+        """Explicitly cover the branch where a > b and a, b are swapped in midpoint
+        calculation."""
+        # Construct a curve where the extrema are out of order for at least one pair
+        # This can be forced by creating peaks and troughs at known locations
+        curve = np.zeros(100)
+        curve[60:63] = 1  # Peak 1 (broad)
+        curve[20:23] = -1  # Trough (broad, before peak)
+        # This will create a situation where, depending on the order, a > b for some (a, b)
+        peaks, troughs, mids, all_extrema = self.util.find_init_peaks_troughs_mids(
+            curve
+        )
+        # The test passes if it runs without error and returns valid midpoints
+        assert isinstance(mids, np.ndarray)
+        assert mids.size > 0
+
     def test_get_init_params_plot_branch(self):
         """Explicitly cover the plot=True branch in get_init_params."""
         x = np.linspace(0, 2 * np.pi, 100)

@@ -191,6 +191,13 @@ class TestWiggleCleaner:
         arr2 = self.wc.configure_noise(np.ones(5), np.ones(5), 1.0)
         assert np.all(arr2 == 1.0)
 
+    def test_configure_noise_raises_on_missing_noise(self):
+        """Test that configure_noise raises ValueError if wiggle_noise is None and
+        specified_noise_level == 0."""
+        arr = np.ones(5)
+        with pytest.raises(ValueError):
+            self.wc.configure_noise(arr, None, 0)
+
     def test_plot_model_and_get_model_uncertainty(self):
         """Test plotting and model uncertainty estimation."""
         self.wc._amplitude_spline = DummySpline(np.ones(3))
