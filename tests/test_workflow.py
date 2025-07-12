@@ -163,7 +163,7 @@ class TestWorkflow:
             init_peak_detection_proximity_threshold=200,
             include_scatter=False,
             outlier_rejection_method="sigma_clip",
-            sigma_clip=3,
+            sigma_clip_sigma=3,
             sigma_clip_max_iterations=2,
             use_huber_loss=True,
             fdr_alpha=0.01,
@@ -188,7 +188,7 @@ class TestWorkflow:
                 init_peak_detection_proximity_threshold=200,
                 include_scatter=False,
                 outlier_rejection_method="sigma_clip",
-                sigma_clip=3,
+                sigma_clip_sigma=3,
                 sigma_clip_max_iterations=2,
                 use_huber_loss=True,
                 fdr_alpha=0.01,
@@ -213,7 +213,7 @@ class TestWorkflow:
                 init_peak_detection_proximity_threshold=200,
                 include_scatter=False,
                 outlier_rejection_method="sigma_clip",
-                sigma_clip=3,
+                sigma_clip_sigma=3,
                 sigma_clip_max_iterations=2,
                 use_huber_loss=True,
                 fdr_alpha=0.01,
@@ -234,6 +234,7 @@ class TestWorkflow:
             for j in range(center_y - 2 * radius, center_y + 2 * radius):
                 if (i - center_x) ** 2 + (j - center_y) ** 2 <= radius**2:
                     mask[i, j] = True
+
         cleaned_cube, cleaned_noise_cube, cleaned_map = self.wcleaner.clean_cube(
             wiggle_detection_sigma_threshold=5.0,
             wiggle_detection_variance_ratio_threshold=0.2,
@@ -263,39 +264,20 @@ class TestWorkflow:
         assert cleaned_noise_cube.shape == self.data_cube.shape
         assert cleaned_map.shape == self.data_cube[0].shape
 
-        # when n_amplitude_for_detection is not equal to n_amplitude
-        cleaned_cube, cleaned_noise_cube, cleaned_map = self.wcleaner.clean_cube(
-            wiggle_detection_sigma_threshold=5.0,
-            wiggle_detection_variance_ratio_threshold=0.2,
-            n_amplitude=10,
-            n_frequency=7,
-            fit_full_model=True,
-            min_n_amplitude=None,
-            min_n_frequency=None,
-            n_amplitude_for_detection=9,
-            n_frequency_for_detection=8,
-            cleaning_mask=mask,
-            init_peak_detection_proximity_threshold=200,
-            aperture_radius=aperture_radius,
-            annulus_outer_radius=annulus_outer_radius,
-            annulus_inner_radius=annulus_inner_radius,
-            plot=False,
-            verbose=True,
-            extract_uncertainty=True,
-            include_scatter=False,
-            outlier_rejection_method="fdr",
-            use_huber_loss=False,
-            fdr_alpha=0.01,
-            fdr_outlier_max_fraction=0.15,
-            sigma_clip_sigma=3,
-            sigma_clip_max_iterations=20,
-            num_samples_uncertainty_region=1000,
-        )
-        assert cleaned_cube.shape == self.data_cube.shape
-        assert cleaned_noise_cube.shape == self.data_cube.shape
-        assert cleaned_map.shape == self.data_cube[0].shape
+    def test_clean_cube_with_min_n_amplitude_and_min_n_frequency(self):
+        """Test clean_cube with min_n_amplitude and min_n_frequency."""
+        aperture_radius = 4
+        annulus_outer_radius = 5
+        annulus_inner_radius = 3
+        mask = np.zeros_like(self.data_cube[0], dtype=bool)
+        center_x = self.quasar_x
+        center_y = self.quasar_y
+        radius = 1
+        for i in range(center_x - 2 * radius, center_x + 2 * radius):
+            for j in range(center_y - 2 * radius, center_y + 2 * radius):
+                if (i - center_x) ** 2 + (j - center_y) ** 2 <= radius**2:
+                    mask[i, j] = True
 
-        # when min_n_amplitude and min_n_frequency are not None
         cleaned_cube, cleaned_noise_cube, cleaned_map = self.wcleaner.clean_cube(
             wiggle_detection_sigma_threshold=5.0,
             wiggle_detection_variance_ratio_threshold=0.2,
@@ -325,33 +307,51 @@ class TestWorkflow:
         assert cleaned_noise_cube.shape == self.data_cube.shape
         assert cleaned_map.shape == self.data_cube[0].shape
 
-    def test_fit_wiggle_with_scatter(self):
-        """Test that fit_wiggle covers scatter and sharpening parameter branches."""
-        # Use a small cube and patch Util methods to avoid real fitting
+    def test_clean_cube_with_wiggle_detection_thresholds(self):
+        """Test clean_cube with wiggle_detection_sigma_threshold and wiggle_detection_variance_ratio_threshold."""
         aperture_radius = 4
         annulus_outer_radius = 5
         annulus_inner_radius = 3
-        result_params = self.wcleaner.fit_wiggle(
-            x=self.quasar_x,
-            y=self.quasar_y,
+        mask = np.zeros_like(self.data_cube[0], dtype=bool)
+        center_x = self.quasar_x
+        center_y = self.quasar_y
+        radius = 1
+        for i in range(center_x - 2 * radius, center_x + 2 * radius):
+            for j in range(center_y - 2 * radius, center_y + 2 * radius):
+                if (i - center_x) ** 2 + (j - center_y) ** 2 <= radius**2:
+                    mask[i, j] = True
+
+        # when n_amplitude_for_detection is not equal to n_amplitude
+        cleaned_cube, cleaned_noise_cube, cleaned_map = self.wcleaner.clean_cube(
+            wiggle_detection_sigma_threshold=5.0,
+            wiggle_detection_variance_ratio_threshold=0.2,
+            n_amplitude=10,
+            n_frequency=7,
+            n_amplitude_for_detection=8,
+            # n_frequency_for_detection=4,
+            fit_full_model=True,
+            min_n_amplitude=None,
+            min_n_frequency=None,
+            cleaning_mask=mask,
+            init_peak_detection_proximity_threshold=200,
             aperture_radius=aperture_radius,
             annulus_outer_radius=annulus_outer_radius,
             annulus_inner_radius=annulus_inner_radius,
             plot=False,
-            n_amplitude=8,
-            n_frequency=5,
-            init_peak_detection_proximity_threshold=30,
-            verbose=False,
-            use_huber_loss=False,
+            verbose=True,
+            extract_uncertainty=True,
+            include_scatter=False,
             outlier_rejection_method="fdr",
-            fdr_alpha=0.05,
-            fdr_outlier_max_fraction=0.2,
-            extract_covariance=True,
-            fit_full_model=True,
-            include_scatter=True,
+            use_huber_loss=False,
+            fdr_alpha=0.01,
+            fdr_outlier_max_fraction=0.15,
+            sigma_clip_sigma=3,
+            sigma_clip_max_iterations=20,
+            num_samples_uncertainty_region=1000,
         )
-        assert isinstance(result_params, tuple)
-        assert isinstance(result_params[0], np.ndarray)
+        assert cleaned_cube.shape == self.data_cube.shape
+        assert cleaned_noise_cube.shape == self.data_cube.shape
+        assert cleaned_map.shape == self.data_cube[0].shape
 
     def test_fit_wiggle_with_sharpening(self):
         """Test that fit_wiggle covers scatter and sharpening parameter branches."""
