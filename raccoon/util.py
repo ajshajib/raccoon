@@ -144,8 +144,7 @@ class Util(object):
             ]
 
         for a, b in iterator:
-            if a > b:
-                a, b = b, a
+            a, b = b, a if a > b else (a, b)
 
             a_value = smooth_curve[a]
             b_value = smooth_curve[b]
