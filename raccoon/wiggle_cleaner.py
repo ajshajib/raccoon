@@ -1795,11 +1795,11 @@ class WiggleCleaner(object):
                         integral = 1
                         integral_base = 1
                         if conserve_flux:
-                            integral = np.trapezoid(
+                            integral = np.trapz(
                                 self._datacube[:, i, j] / wiggle_model,
                                 self.scaled_w,
                             )
-                            integral_base = np.trapezoid(
+                            integral_base = np.trapz(
                                 self._datacube[:, i, j], self.scaled_w
                             )
 
