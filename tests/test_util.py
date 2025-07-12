@@ -220,7 +220,7 @@ class TestUtil:
         n_amplitude = 2
         n_offset = 2
         n_frequency = 1
-        amp, off, freq, phi_0 = self.util.fit_sine_function_to_extrema(
+        amp, off, freq, phi_0 = self.util.fit_sine_function_to_extrema_polynomial(
             extrema_positions, extrema_vals, is_peak, n_amplitude, n_offset, n_frequency
         )
         assert isinstance(amp, np.ndarray)
@@ -239,7 +239,7 @@ class TestUtil:
         n_offset = 2
         n_frequency = 1
         try:
-            amp, off, freq, phi = self.util.fit_sine_function_to_extrema(
+            amp, off, freq, phi = self.util.fit_sine_function_to_extrema_polynomial(
                 extrema_positions,
                 extrema_vals,
                 is_peak,
@@ -258,7 +258,7 @@ class TestUtil:
         x = np.linspace(0, 2 * np.pi, 100)
         curve = np.sin(x)
         scaled_wavelengths = (x - x.min()) / (x.max() - x.min())
-        freq, amp, offset, phi = self.util.get_init_params(
+        freq, amp, offset, phi = self.util.get_init_params_polynomial(
             curve,
             scaled_wavelengths,
             n_amplitude=2,
@@ -278,7 +278,7 @@ class TestUtil:
         x = np.linspace(0, 2 * np.pi, 100)
         curve = np.zeros_like(x)
         try:
-            freq, amp, offset, phi = self.util.get_init_params(
+            freq, amp, offset, phi = self.util.get_init_params_polynomial(
                 curve, x, n_amplitude=2, n_offset=2, n_frequency=1, plot=False
             )
             assert np.all(freq == 0) or freq.size == 0
@@ -292,7 +292,7 @@ class TestUtil:
         curve = np.array([])
         x = np.array([])
         try:
-            freq, amp, offset, phi = self.util.get_init_params(
+            freq, amp, offset, phi = self.util.get_init_params_polynomial(
                 curve, x, n_amplitude=2, n_offset=2, n_frequency=1, plot=False
             )
             assert freq.size == 0
@@ -446,3 +446,79 @@ class TestUtil:
         assert len(peaks) == 2
         assert np.any(np.abs(peaks - 12) <= 2)  # Surviving close peak is near 10/12/14
         assert np.any(np.abs(peaks - 80) <= 2)
+
+    def test_find_extrema_proximity_while_loop_multiple_iterations(self):
+        """Covers multiple iterations of the while loop removing close extrema."""
+        curve = np.zeros(100)
+        # Five close peaks, all within threshold
+        curve[10] = 1
+        curve[12] = 1
+        curve[14] = 1
+        curve[16] = 1
+        curve[18] = 1
+        curve[80] = 1  # Far peak
+        # Set threshold so only one of the close peaks remains
+        peaks = self.util.find_extrema(
+            curve, init_peak_detection_proximity_threshold=5, is_peak=True
+        )
+        # Only one of the close peaks (10,12,14,16,18) should remain, and the far one
+        assert len(peaks) == 2
+        assert np.any(
+            np.abs(peaks - 14) <= 4
+        )  # Surviving close peak is near the cluster
+        assert np.any(np.abs(peaks - 80) <= 2)
+
+    def test_find_init_peaks_troughs_mids_midpoint_a_greater_than_b(self):
+        """Explicitly cover the branch where a > b in midpoint calculation."""
+        # Construct a curve where the extrema are out of order for at least one pair
+        # This can be forced by creating peaks and troughs at known locations
+        curve = np.zeros(100)
+        curve[20:23] = 1  # Peak 1 (broad)
+        curve[50:53] = -1  # Trough (broad)
+        curve[40:43] = 1  # Peak 2 (broad, before trough)
+        # This will create a situation where, depending on the order, a > b for some (a, b)
+        peaks, troughs, mids, all_extrema = self.util.find_init_peaks_troughs_mids(
+            curve
+        )
+        # The test passes if it runs without error and returns valid midpoints
+        assert isinstance(mids, np.ndarray)
+        assert mids.size > 0
+
+    def test_get_init_params_plot_branch(self):
+        """Explicitly cover the plot=True branch in get_init_params."""
+        x = np.linspace(0, 2 * np.pi, 100)
+        curve = np.sin(x)
+        # Should run without error and produce a plot (no assertion needed)
+        self.util.get_init_params_polynomial(
+            curve,
+            x,
+            n_amplitude=2,
+            n_offset=2,
+            n_frequency=1,
+            plot=True,
+        )
+
+    def test_fitted_sine_function(self):
+        """Test Util.fitted_sine_function for output type, shape, and values."""
+        x = np.linspace(0, 2 * np.pi, 100)
+        amp_coeffs = np.array([1.0])  # constant amplitude
+        offset_coeffs = np.array([0.5])  # constant offset
+        freq_coeffs = np.array([2.0])  # constant frequency
+        phi_0 = 0.0
+        y = self.util.fitted_sine_function_polynomial(
+            x, amp_coeffs, offset_coeffs, freq_coeffs, phi_0
+        )
+        assert isinstance(y, np.ndarray)
+        assert y.shape == x.shape
+        # Check that the output is as expected for constant coefficients
+        expected = 1 + 1.0 * np.sin(2.0 * x) + 0.5
+        assert np.allclose(y, expected)
+
+    def test_get_init_params_spline_plot_branch(self):
+        """Explicitly cover the plot=True branch in get_init_params_spline."""
+        x = np.linspace(0, 10 * np.pi, 500)
+        curve = np.sin(x)
+        # Should run without error and produce plots (no assertion needed)
+        self.util.get_init_params_spline(
+            curve, x, n_amplitude=4, n_frequency=3, plot=True
+        )

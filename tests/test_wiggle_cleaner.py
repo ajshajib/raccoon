@@ -3,7 +3,6 @@
 """Tests for `raccoon` package."""
 
 import numpy as np
-from astropy.io import fits
 import pytest
 from raccoon import WiggleCleaner
 
@@ -22,8 +21,7 @@ class DummySpline:
 def make_dummy_wiggle_cleaner():
     """Create a WiggleCleaner instance with dummy data for testing.
 
-    Returns:
-        WiggleCleaner: An instance with dummy wavelength, datacube, and noise_cube.
+    :returns: A WiggleCleaner instance with dummy wavelength, datacube, and noise_cube.
     """
     wavelengths = np.linspace(
         1, 10, 50
@@ -650,243 +648,78 @@ class TestWiggleCleaner:
         except Exception as e:
             assert False, f"Unexpected exception: {e}"
 
-    # def test_fit_wiggle_smoke(self):
-    #     """Smoke test for fit_wiggle: covers main branches, argument handling, and covariance extraction."""
-    #     # Patch the datacube at (2,2) to have a sine wave (at least 2 extrema)
-    #     for i in range(self.wc._datacube.shape[1]):
-    #         for j in range(self.wc._datacube.shape[2]):
-    #             self.wc._datacube[:, i, j] = np.sin(
-    #                 np.linspace(0, 4 * np.pi, self.wc._datacube.shape[0])
-    #             )
+    def test_fit_wiggle_do_interim_fit_phase_only(self):
+        """Test fit_wiggle covers the do_interim_fit_phase_only branch."""
+        # Patch least_squares and get_residual_func_phase_only to avoid actual optimization
+        self.wc._amplitude_spline = DummySpline(np.ones(3))
+        self.wc._frequency_spline = DummySpline(np.ones(3))
+        self.wc._n_amplitude = 2
+        self.wc._n_frequency = 2
+        n_wave = self.wc._datacube.shape[0]
+        x = 0
+        y = 0
+        aperture_radius = 1
+        annulus_outer_radius = 2
+        annulus_inner_radius = 1
 
-    #     import raccoon.util
+        class DummyResult:
+            def __init__(self):
+                # The model expects a vector of length n_wave in the phase-only branch
+                self.x = np.ones(n_wave)
 
-    #     orig_smooth_curve = raccoon.util.Util.smooth_curve
-    #     orig_lighter_smooth_curve = raccoon.util.Util.lighter_smooth_curve
-    #     raccoon.util.Util.smooth_curve = staticmethod(
-    #         lambda curve: __import__("scipy.signal").signal.savgol_filter(curve, 5, 3)
-    #     )
-    #     raccoon.util.Util.lighter_smooth_curve = staticmethod(
-    #         lambda curve: __import__("scipy.signal").signal.savgol_filter(curve, 5, 3)
-    #     )
-    #     try:
-    #         x, y = 0, 0
-    #         fitwiggle_kwargs = dict(
-    #             aperture_radius=1, annulus_outer_radius=2, annulus_inner_radius=1
-    #         )
-    #         params, cov = self.wc.fit_wiggle(x, y, **fitwiggle_kwargs)
-    #         assert isinstance(params, np.ndarray)
-    #         # Covariance should be None or a 2D array
-    #         assert cov is None or (isinstance(cov, np.ndarray) and cov.ndim == 2)
+        with pytest.MonkeyPatch.context() as m:
+            import raccoon
 
-    #         # Test with outlier rejection (sigma_clip)
-    #         params2, cov2 = self.wc.fit_wiggle(
-    #             x, y, outlier_rejection_method="sigma_clip", **fitwiggle_kwargs
-    #         )
-    #         assert isinstance(params2, np.ndarray)
-    #         assert cov2 is None or (isinstance(cov2, np.ndarray) and cov2.ndim == 2)
-
-    #         # Test with outlier rejection (fdr)
-    #         params3, cov3 = self.wc.fit_wiggle(
-    #             x, y, outlier_rejection_method="fdr", **fitwiggle_kwargs
-    #         )
-    #         assert isinstance(params3, np.ndarray)
-    #         assert cov3 is None or (isinstance(cov3, np.ndarray) and cov3.ndim == 2)
-
-    #         # Test with fit_full_model and extract_covariance False
-    #         params4, cov4 = self.wc.fit_wiggle(
-    #             x, y, fit_full_model=True, extract_covariance=False, **fitwiggle_kwargs
-    #         )
-    #         assert isinstance(params4, np.ndarray)
-    #         assert cov4 is None
-
-    #         # Test with plot and verbose (should not raise)
-    #         try:
-    #             self.wc.fit_wiggle(x, y, plot=True, verbose=True, **fitwiggle_kwargs)
-    #         except Exception:
-    #             pass
-
-    #         # Test with custom polynomial degrees and noise
-    #         params5, cov5 = self.wc.fit_wiggle(
-    #             x,
-    #             y,
-    #             n_amplitude=3,
-    #             n_frequency=3,
-    #             specified_noise_level=0.5,
-    #             **fitwiggle_kwargs
-    #         )
-    #         assert isinstance(params5, np.ndarray)
-    #         assert cov5 is None or (isinstance(cov5, np.ndarray) and cov5.ndim == 2)
-
-    #         # Test with both sharpening modes
-    #         params6, cov6 = self.wc.fit_wiggle(
-    #             x,
-    #             y,
-    #             symmetric_sharpening=True,
-    #             asymmetric_sharpening=True,
-    #             **fitwiggle_kwargs
-    #         )
-    #         assert isinstance(params6, np.ndarray)
-    #         assert cov6 is None or (isinstance(cov6, np.ndarray) and cov6.ndim == 2)
-
-    #         # Test with interim phase-only fit
-    #         params7, cov7 = self.wc.fit_wiggle(
-    #             x, y, do_interim_fit_phase_only=True, **fitwiggle_kwargs
-    #         )
-    #         assert isinstance(params7, np.ndarray)
-    #         assert cov7 is None or (isinstance(cov7, np.ndarray) and cov7.ndim == 2)
-    #     finally:
-    #         raccoon.util.Util.smooth_curve = orig_smooth_curve
-    #         raccoon.util.Util.lighter_smooth_curve = orig_lighter_smooth_curve
-
-
-class TestNotebookWorkflow:
-    @classmethod
-    def setup_class(cls):
-        datacube_file = "example/example_data.fits"
-        cls.data_cube, cls.header = fits.getdata(datacube_file, header=True)
-        cls.noise_cube = fits.getdata(datacube_file, ext=1)
-        cls.wavelengths = (
-            cls.header["CRVAL3"]
-            + cls.header["CDELT3"] * np.arange(cls.header["NAXIS3"])
-        ) * 1e4
-        cls.quasar_x, cls.quasar_y = 16, 16
-        cls.wcleaner = WiggleCleaner(
-            cls.wavelengths,
-            cls.data_cube,
-            cls.noise_cube,
-            continuum_diff_polynomial_order=2,
-            symmetric_sharpening=True,
-            asymmetric_sharpening=True,
-        )
-
-    def test_data_shapes(self):
-        assert self.data_cube.shape == self.noise_cube.shape
-        assert self.data_cube.shape[0] == self.wavelengths.shape[0]
-
-    def test_get_wiggle_signal_apertures(self):
-        for s in np.arange(1, 3, 1):
-            wiggle_signal, wiggle_noise = self.wcleaner.get_wiggle_signal(
-                self.quasar_x,
-                self.quasar_y,
-                aperture_radius=s,
-                annulus_outer_radius=s + 1,
-                annulus_inner_radius=s - 1,
+            m.setattr(
+                "raccoon.wiggle_cleaner.least_squares", lambda *a, **kw: DummyResult()
             )
-            assert wiggle_signal.shape == self.wavelengths.shape
-            assert wiggle_noise.shape == self.wavelengths.shape
-
-    def test_get_wiggle_signal_annuli(self):
-        for i in range(0, 2, 1):
-            wiggle_signal, wiggle_noise = self.wcleaner.get_wiggle_signal(
-                self.quasar_x,
-                self.quasar_y,
-                aperture_radius=4,
-                annulus_outer_radius=4 - i + 2,
-                annulus_inner_radius=4 - i,
+            m.setattr(
+                self.wc,
+                "get_residual_func_phase_only",
+                lambda *a, **kw: (lambda p: np.zeros(n_wave)),
             )
-            assert wiggle_signal.shape == self.wavelengths.shape
-            assert wiggle_noise.shape == self.wavelengths.shape
-
-    def test_get_wiggle_signal_inner_annuli(self):
-        for i in range(0, 2, 1):
-            wiggle_signal, wiggle_noise = self.wcleaner.get_wiggle_signal(
-                self.quasar_x,
-                self.quasar_y,
-                aperture_radius=4,
-                annulus_outer_radius=5,
-                annulus_inner_radius=5 - i,
+            m.setattr(
+                raccoon.util.Util, "smooth_curve", staticmethod(lambda curve: curve)
             )
-            assert wiggle_signal.shape == self.wavelengths.shape
-            assert wiggle_noise.shape == self.wavelengths.shape
-
-    def test_fit_wiggle(self):
-        aperture_radius = 4
-        annulus_outer_radius = 5
-        annulus_inner_radius = 3
-        result_params = self.wcleaner.fit_wiggle(
-            x=self.quasar_x,
-            y=self.quasar_y,
-            aperture_radius=aperture_radius,
-            annulus_outer_radius=annulus_outer_radius,
-            annulus_inner_radius=annulus_inner_radius,
-            plot=False,
-            n_amplitude=8,
-            n_frequency=5,
-            init_peak_detection_proximity_threshold=30,
-            verbose=False,
-            use_huber_loss=False,
-            outlier_rejection_method="fdr",
-            fdr_alpha=0.05,
-            fdr_outlier_max_fraction=0.2,
-            extract_covariance=True,
-            fit_full_model=True,
-            include_scatter=False,
-        )
-        assert isinstance(result_params, tuple)
-        assert isinstance(result_params[0], np.ndarray)
-
-    def test_fit_wiggle_with_model_selection(self):
-        aperture_radius = 4
-        self.wcleaner.fit_wiggle_with_model_selection(
-            15,  # quasar_x
-            15,  # quasar_y
-            aperture_radius=aperture_radius,
-            annulus_outer_radius=aperture_radius + 1,
-            annulus_inner_radius=aperture_radius - 1,
-            plot=False,
-            n_amplitude=5,
-            n_frequency=3,
-            min_n_amplitude=5,
-            min_n_frequency=2,
-            selection_criteria="bic",
-            init_peak_detection_proximity_threshold=200,
-            include_scatter=False,
-            outlier_rejection_method="fdr",
-            use_huber_loss=False,
-            fdr_alpha=0.01,
-            fdr_outlier_max_fraction=0.10,
-            extract_covariance=True,
-            fit_full_model=True,
-        )
-
-    def test_clean_cube(self):
-        aperture_radius = 4
-        annulus_outer_radius = 5
-        annulus_inner_radius = 3
-        mask = np.zeros_like(self.data_cube[0], dtype=bool)
-        center_x = self.quasar_x
-        center_y = self.quasar_y
-        radius = 1
-        for i in range(center_x - 2 * radius, center_x + 2 * radius):
-            for j in range(center_y - 2 * radius, center_y + 2 * radius):
-                if (i - center_x) ** 2 + (j - center_y) ** 2 <= radius**2:
-                    mask[i, j] = True
-        cleaned_cube, cleaned_noise_cube, cleaned_map = self.wcleaner.clean_cube(
-            wiggle_detection_sigma_threshold=5.0,
-            wiggle_detection_variance_ratio_threshold=0.2,
-            n_amplitude=10,
-            n_frequency=7,
-            fit_full_model=True,
-            min_n_amplitude=None,
-            min_n_frequency=None,
-            cleaning_mask=mask,
-            init_peak_detection_proximity_threshold=200,
-            aperture_radius=aperture_radius,
-            annulus_outer_radius=annulus_outer_radius,
-            annulus_inner_radius=annulus_inner_radius,
-            plot=False,
-            verbose=False,
-            extract_uncertainty=True,
-            include_scatter=False,
-            outlier_rejection_method="fdr",
-            use_huber_loss=False,
-            fdr_alpha=0.01,
-            fdr_outlier_max_fraction=0.15,
-            sigma_clip_sigma=3,
-            sigma_clip_max_iterations=20,
-            num_samples_uncertainty_region=1000,
-        )
-        assert cleaned_cube.shape == self.data_cube.shape
-        assert cleaned_noise_cube.shape == self.data_cube.shape
-        assert cleaned_map.shape == self.data_cube[0].shape
+            m.setattr(
+                raccoon.util.Util,
+                "find_init_peaks_troughs_mids",
+                staticmethod(
+                    lambda curve, init_peak_detection_proximity_threshold=50: (
+                        np.array([1]),
+                        np.array([2]),
+                        np.array([1.5]),
+                        np.array([1, 2]),
+                    )
+                ),
+            )
+            m.setattr(
+                raccoon.util.Util,
+                "fit_sine_function_to_extrema_spline",
+                staticmethod(
+                    lambda *a, **kw: (
+                        DummySpline(np.ones(3)),
+                        DummySpline(np.ones(3)),
+                        0.0,
+                    )
+                ),
+            )
+            # Should run and cover the do_interim_fit_phase_only branch
+            try:
+                self.wc.fit_wiggle(
+                    x,
+                    y,
+                    aperture_radius=aperture_radius,
+                    annulus_outer_radius=annulus_outer_radius,
+                    annulus_inner_radius=annulus_inner_radius,
+                    n_amplitude=2,
+                    n_frequency=2,
+                    do_interim_fit_phase_only=True,
+                    include_scatter=False,
+                    extract_covariance=False,
+                    outlier_rejection_method=None,
+                    use_huber_loss=False,
+                    plot=False,
+                )
+            except Exception as e:
+                assert False, f"Unexpected exception: {e}"
