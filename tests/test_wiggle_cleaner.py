@@ -96,6 +96,11 @@ class TestWiggleCleaner:
         n_a, n_f = self.wc.configure_polynomial_ns()
         assert n_a == 3 and n_f == 4
 
+        with pytest.raises(ValueError):
+            self.wc.configure_polynomial_ns(1, 2)
+        with pytest.raises(ValueError):
+            self.wc.configure_polynomial_ns(2, 1)
+
     def test_configure_polynomial_ns_defaults(self):
         """Test configure_polynomial_ns uses instance defaults when args are None."""
         self.wc._n_amplitude = 7

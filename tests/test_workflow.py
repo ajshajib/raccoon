@@ -264,6 +264,49 @@ class TestWorkflow:
         assert cleaned_noise_cube.shape == self.data_cube.shape
         assert cleaned_map.shape == self.data_cube[0].shape
 
+    def test_clean_cube_no_wiggle_detection(self):
+        """Test clean_cube with too high wiggle detection criteria."""
+        aperture_radius = 4
+        annulus_outer_radius = 5
+        annulus_inner_radius = 3
+        mask = np.zeros_like(self.data_cube[0], dtype=bool)
+        center_x = self.quasar_x
+        center_y = self.quasar_y
+        radius = 1
+        for i in range(center_x - 2 * radius, center_x + 2 * radius):
+            for j in range(center_y - 2 * radius, center_y + 2 * radius):
+                if (i - center_x) ** 2 + (j - center_y) ** 2 <= radius**2:
+                    mask[i, j] = True
+
+        cleaned_cube, cleaned_noise_cube, cleaned_map = self.wcleaner.clean_cube(
+            wiggle_detection_sigma_threshold=1000.0,
+            wiggle_detection_variance_ratio_threshold=1.0,
+            n_amplitude=10,
+            n_frequency=7,
+            fit_full_model=True,
+            min_n_amplitude=None,
+            min_n_frequency=None,
+            cleaning_mask=mask,
+            init_peak_detection_proximity_threshold=200,
+            aperture_radius=aperture_radius,
+            annulus_outer_radius=annulus_outer_radius,
+            annulus_inner_radius=annulus_inner_radius,
+            plot=False,
+            verbose=True,
+            extract_uncertainty=True,
+            include_scatter=False,
+            outlier_rejection_method="fdr",
+            use_huber_loss=False,
+            fdr_alpha=0.01,
+            fdr_outlier_max_fraction=0.15,
+            sigma_clip_sigma=3,
+            sigma_clip_max_iterations=20,
+            num_samples_uncertainty_region=1000,
+        )
+        assert cleaned_cube.shape == self.data_cube.shape
+        assert cleaned_noise_cube.shape == self.data_cube.shape
+        assert cleaned_map.shape == self.data_cube[0].shape
+
     def test_clean_cube_with_min_n_amplitude_and_min_n_frequency(self):
         """Test clean_cube with min_n_amplitude and min_n_frequency."""
         aperture_radius = 4

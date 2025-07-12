@@ -800,10 +800,9 @@ class WiggleCleaner(object):
             m, n = jacobian.shape
 
             # Check degrees of freedom
-            if m <= n:
-                raise ValueError(
-                    "Number of observations must exceed number of parameters to estimate uncertainty."
-                )
+            assert (
+                m > n
+            ), "Number of observations must exceed number of parameters to estimate uncertainty."
 
             # Calculate residual sum of squares and variance estimate
             sum_of_squared_residuals = np.sum(residuals**2)
