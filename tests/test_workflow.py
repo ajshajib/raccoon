@@ -263,6 +263,7 @@ class TestWorkflow:
         assert cleaned_noise_cube.shape == self.data_cube.shape
         assert cleaned_map.shape == self.data_cube[0].shape
 
+        # when n_amplitude_for_detection is not equal to n_amplitude
         cleaned_cube, cleaned_noise_cube, cleaned_map = self.wcleaner.clean_cube(
             wiggle_detection_sigma_threshold=5.0,
             wiggle_detection_variance_ratio_threshold=0.2,
@@ -271,8 +272,38 @@ class TestWorkflow:
             fit_full_model=True,
             min_n_amplitude=None,
             min_n_frequency=None,
-            n_amplitude_for_detection=10,
-            n_frequency_for_detection=7,
+            n_amplitude_for_detection=9,
+            n_frequency_for_detection=8,
+            cleaning_mask=mask,
+            init_peak_detection_proximity_threshold=200,
+            aperture_radius=aperture_radius,
+            annulus_outer_radius=annulus_outer_radius,
+            annulus_inner_radius=annulus_inner_radius,
+            plot=False,
+            verbose=True,
+            extract_uncertainty=True,
+            include_scatter=False,
+            outlier_rejection_method="fdr",
+            use_huber_loss=False,
+            fdr_alpha=0.01,
+            fdr_outlier_max_fraction=0.15,
+            sigma_clip_sigma=3,
+            sigma_clip_max_iterations=20,
+            num_samples_uncertainty_region=1000,
+        )
+        assert cleaned_cube.shape == self.data_cube.shape
+        assert cleaned_noise_cube.shape == self.data_cube.shape
+        assert cleaned_map.shape == self.data_cube[0].shape
+
+        # when min_n_amplitude and min_n_frequency are not None
+        cleaned_cube, cleaned_noise_cube, cleaned_map = self.wcleaner.clean_cube(
+            wiggle_detection_sigma_threshold=5.0,
+            wiggle_detection_variance_ratio_threshold=0.2,
+            n_amplitude=10,
+            n_frequency=7,
+            fit_full_model=True,
+            min_n_amplitude=9,
+            min_n_frequency=7,
             cleaning_mask=mask,
             init_peak_detection_proximity_threshold=200,
             aperture_radius=aperture_radius,
