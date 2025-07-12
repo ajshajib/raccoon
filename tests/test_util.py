@@ -485,7 +485,8 @@ class TestUtil:
         assert mids.size > 0
 
     def test_find_init_peaks_troughs_mids_midpoint_swap_branch(self):
-        """Explicitly cover the branch where a > b and a, b are swapped in midpoint calculation."""
+        """Explicitly cover the branch where a > b and a, b are swapped in midpoint
+        calculation."""
         # Construct a curve where the extrema are out of order for at least one pair
         # This can be forced by creating peaks and troughs at known locations
         curve = np.zeros(100)
