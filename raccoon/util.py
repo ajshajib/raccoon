@@ -160,7 +160,7 @@ class Util(object):
         return peaks, troughs, midpoints, all_extrema
 
     @classmethod
-    def get_init_params(
+    def get_init_params_polynomial(
         cls,
         curve,
         scaled_wavelengths,
@@ -196,7 +196,7 @@ class Util(object):
         extrema_sw = scaled_wavelengths[extrema]
 
         amplitude_params, offset_params, frequency_params, init_phi = (
-            cls.fit_sine_function_to_extrema(
+            cls.fit_sine_function_to_extrema_polynomial(
                 extrema_sw,
                 extrema_values,
                 np.array([True if i in peaks else False for i in extrema]),
@@ -237,7 +237,7 @@ class Util(object):
             )
             plt.plot(
                 scaled_wavelengths,
-                cls.fitted_sine_function(
+                cls.fitted_sine_function_polynomial(
                     scaled_wavelengths,
                     amplitude_params,
                     offset_params,
@@ -367,7 +367,7 @@ class Util(object):
         return x
 
     @classmethod
-    def fit_sine_function_to_extrema(
+    def fit_sine_function_to_extrema_polynomial(
         cls,
         extrema_positions,
         extrema_vals,
@@ -549,7 +549,7 @@ class Util(object):
         return amp_spline, frequency_spline, phi_0
 
     @classmethod
-    def fitted_sine_function(
+    def fitted_sine_function_polynomial(
         cls, xs, amplitude_coeffs, offset_coeffs, frequency_coeffs, phi_0
     ):
         """Evaluate the fitted sine function at x.

@@ -220,7 +220,7 @@ class TestUtil:
         n_amplitude = 2
         n_offset = 2
         n_frequency = 1
-        amp, off, freq, phi_0 = self.util.fit_sine_function_to_extrema(
+        amp, off, freq, phi_0 = self.util.fit_sine_function_to_extrema_polynomial(
             extrema_positions, extrema_vals, is_peak, n_amplitude, n_offset, n_frequency
         )
         assert isinstance(amp, np.ndarray)
@@ -239,7 +239,7 @@ class TestUtil:
         n_offset = 2
         n_frequency = 1
         try:
-            amp, off, freq, phi = self.util.fit_sine_function_to_extrema(
+            amp, off, freq, phi = self.util.fit_sine_function_to_extrema_polynomial(
                 extrema_positions,
                 extrema_vals,
                 is_peak,
@@ -258,7 +258,7 @@ class TestUtil:
         x = np.linspace(0, 2 * np.pi, 100)
         curve = np.sin(x)
         scaled_wavelengths = (x - x.min()) / (x.max() - x.min())
-        freq, amp, offset, phi = self.util.get_init_params(
+        freq, amp, offset, phi = self.util.get_init_params_polynomial(
             curve,
             scaled_wavelengths,
             n_amplitude=2,
@@ -278,7 +278,7 @@ class TestUtil:
         x = np.linspace(0, 2 * np.pi, 100)
         curve = np.zeros_like(x)
         try:
-            freq, amp, offset, phi = self.util.get_init_params(
+            freq, amp, offset, phi = self.util.get_init_params_polynomial(
                 curve, x, n_amplitude=2, n_offset=2, n_frequency=1, plot=False
             )
             assert np.all(freq == 0) or freq.size == 0
@@ -292,7 +292,7 @@ class TestUtil:
         curve = np.array([])
         x = np.array([])
         try:
-            freq, amp, offset, phi = self.util.get_init_params(
+            freq, amp, offset, phi = self.util.get_init_params_polynomial(
                 curve, x, n_amplitude=2, n_offset=2, n_frequency=1, plot=False
             )
             assert freq.size == 0
@@ -489,7 +489,7 @@ class TestUtil:
         x = np.linspace(0, 2 * np.pi, 100)
         curve = np.sin(x)
         # Should run without error and produce a plot (no assertion needed)
-        self.util.get_init_params(
+        self.util.get_init_params_polynomial(
             curve,
             x,
             n_amplitude=2,
@@ -505,7 +505,7 @@ class TestUtil:
         offset_coeffs = np.array([0.5])  # constant offset
         freq_coeffs = np.array([2.0])  # constant frequency
         phi_0 = 0.0
-        y = self.util.fitted_sine_function(
+        y = self.util.fitted_sine_function_polynomial(
             x, amp_coeffs, offset_coeffs, freq_coeffs, phi_0
         )
         assert isinstance(y, np.ndarray)
