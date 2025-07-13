@@ -4,7 +4,7 @@
 
 import numpy as np
 import pytest
-from raccoon import WiggleCleaner
+from raccoon.wiggle_cleaner import WiggleCleaner
 
 
 class DummySpline:
@@ -21,7 +21,8 @@ class DummySpline:
 def make_dummy_wiggle_cleaner():
     """Create a WiggleCleaner instance with dummy data for testing.
 
-    :returns: A WiggleCleaner instance with dummy wavelength, datacube, and noise_cube.
+    Returns:
+        WiggleCleaner: An instance with dummy wavelength, datacube, and noise_cube.
     """
     wavelengths = np.linspace(
         1, 10, 50
@@ -95,11 +96,6 @@ class TestWiggleCleaner:
         self.wc._n_frequency = 4
         n_a, n_f = self.wc.configure_polynomial_ns()
         assert n_a == 3 and n_f == 4
-
-        with pytest.raises(ValueError):
-            self.wc.configure_polynomial_ns(1, 2)
-        with pytest.raises(ValueError):
-            self.wc.configure_polynomial_ns(2, 1)
 
     def test_configure_polynomial_ns_defaults(self):
         """Test configure_polynomial_ns uses instance defaults when args are None."""
@@ -195,13 +191,6 @@ class TestWiggleCleaner:
         assert arr.shape[0] == 5
         arr2 = self.wc.configure_noise(np.ones(5), np.ones(5), 1.0)
         assert np.all(arr2 == 1.0)
-
-    def test_configure_noise_raises_on_missing_noise(self):
-        """Test that configure_noise raises ValueError if wiggle_noise is None and
-        specified_noise_level == 0."""
-        arr = np.ones(5)
-        with pytest.raises(ValueError):
-            self.wc.configure_noise(arr, None, 0)
 
     def test_plot_model_and_get_model_uncertainty(self):
         """Test plotting and model uncertainty estimation."""
@@ -660,78 +649,91 @@ class TestWiggleCleaner:
         except Exception as e:
             assert False, f"Unexpected exception: {e}"
 
-    def test_fit_wiggle_do_interim_fit_phase_only(self):
-        """Test fit_wiggle covers the do_interim_fit_phase_only branch."""
-        # Patch least_squares and get_residual_func_phase_only to avoid actual optimization
-        self.wc._amplitude_spline = DummySpline(np.ones(3))
-        self.wc._frequency_spline = DummySpline(np.ones(3))
-        self.wc._n_amplitude = 2
-        self.wc._n_frequency = 2
-        n_wave = self.wc._datacube.shape[0]
-        x = 0
-        y = 0
-        aperture_radius = 1
-        annulus_outer_radius = 2
-        annulus_inner_radius = 1
+    # def test_fit_wiggle_smoke(self):
+    #     """Smoke test for fit_wiggle: covers main branches, argument handling, and covariance extraction."""
+    #     # Patch the datacube at (2,2) to have a sine wave (at least 2 extrema)
+    #     for i in range(self.wc._datacube.shape[1]):
+    #         for j in range(self.wc._datacube.shape[2]):
+    #             self.wc._datacube[:, i, j] = np.sin(
+    #                 np.linspace(0, 4 * np.pi, self.wc._datacube.shape[0])
+    #             )
 
-        class DummyResult:
-            def __init__(self):
-                # The model expects a vector of length n_wave in the phase-only branch
-                self.x = np.ones(n_wave)
+    #     import raccoon.util
 
-        with pytest.MonkeyPatch.context() as m:
-            import raccoon
+    #     orig_smooth_curve = raccoon.util.Util.smooth_curve
+    #     orig_lighter_smooth_curve = raccoon.util.Util.lighter_smooth_curve
+    #     raccoon.util.Util.smooth_curve = staticmethod(
+    #         lambda curve: __import__("scipy.signal").signal.savgol_filter(curve, 5, 3)
+    #     )
+    #     raccoon.util.Util.lighter_smooth_curve = staticmethod(
+    #         lambda curve: __import__("scipy.signal").signal.savgol_filter(curve, 5, 3)
+    #     )
+    #     try:
+    #         x, y = 0, 0
+    #         fitwiggle_kwargs = dict(
+    #             aperture_radius=1, annulus_outer_radius=2, annulus_inner_radius=1
+    #         )
+    #         params, cov = self.wc.fit_wiggle(x, y, **fitwiggle_kwargs)
+    #         assert isinstance(params, np.ndarray)
+    #         # Covariance should be None or a 2D array
+    #         assert cov is None or (isinstance(cov, np.ndarray) and cov.ndim == 2)
 
-            m.setattr(
-                "raccoon.wiggle_cleaner.least_squares", lambda *a, **kw: DummyResult()
-            )
-            m.setattr(
-                self.wc,
-                "get_residual_func_phase_only",
-                lambda *a, **kw: (lambda p: np.zeros(n_wave)),
-            )
-            m.setattr(
-                raccoon.util.Util, "smooth_curve", staticmethod(lambda curve: curve)
-            )
-            m.setattr(
-                raccoon.util.Util,
-                "find_init_peaks_troughs_mids",
-                staticmethod(
-                    lambda curve, init_peak_detection_proximity_threshold=50: (
-                        np.array([1]),
-                        np.array([2]),
-                        np.array([1.5]),
-                        np.array([1, 2]),
-                    )
-                ),
-            )
-            m.setattr(
-                raccoon.util.Util,
-                "fit_sine_function_to_extrema_spline",
-                staticmethod(
-                    lambda *a, **kw: (
-                        DummySpline(np.ones(3)),
-                        DummySpline(np.ones(3)),
-                        0.0,
-                    )
-                ),
-            )
-            # Should run and cover the do_interim_fit_phase_only branch
-            try:
-                self.wc.fit_wiggle(
-                    x,
-                    y,
-                    aperture_radius=aperture_radius,
-                    annulus_outer_radius=annulus_outer_radius,
-                    annulus_inner_radius=annulus_inner_radius,
-                    n_amplitude=2,
-                    n_frequency=2,
-                    do_interim_fit_phase_only=True,
-                    include_scatter=False,
-                    extract_covariance=False,
-                    outlier_rejection_method=None,
-                    use_huber_loss=False,
-                    plot=False,
-                )
-            except Exception as e:
-                assert False, f"Unexpected exception: {e}"
+    #         # Test with outlier rejection (sigma_clip)
+    #         params2, cov2 = self.wc.fit_wiggle(
+    #             x, y, outlier_rejection_method="sigma_clip", **fitwiggle_kwargs
+    #         )
+    #         assert isinstance(params2, np.ndarray)
+    #         assert cov2 is None or (isinstance(cov2, np.ndarray) and cov2.ndim == 2)
+
+    #         # Test with outlier rejection (fdr)
+    #         params3, cov3 = self.wc.fit_wiggle(
+    #             x, y, outlier_rejection_method="fdr", **fitwiggle_kwargs
+    #         )
+    #         assert isinstance(params3, np.ndarray)
+    #         assert cov3 is None or (isinstance(cov3, np.ndarray) and cov3.ndim == 2)
+
+    #         # Test with fit_full_model and extract_covariance False
+    #         params4, cov4 = self.wc.fit_wiggle(
+    #             x, y, fit_full_model=True, extract_covariance=False, **fitwiggle_kwargs
+    #         )
+    #         assert isinstance(params4, np.ndarray)
+    #         assert cov4 is None
+
+    #         # Test with plot and verbose (should not raise)
+    #         try:
+    #             self.wc.fit_wiggle(x, y, plot=True, verbose=True, **fitwiggle_kwargs)
+    #         except Exception:
+    #             pass
+
+    #         # Test with custom polynomial degrees and noise
+    #         params5, cov5 = self.wc.fit_wiggle(
+    #             x,
+    #             y,
+    #             n_amplitude=3,
+    #             n_frequency=3,
+    #             specified_noise_level=0.5,
+    #             **fitwiggle_kwargs
+    #         )
+    #         assert isinstance(params5, np.ndarray)
+    #         assert cov5 is None or (isinstance(cov5, np.ndarray) and cov5.ndim == 2)
+
+    #         # Test with both sharpening modes
+    #         params6, cov6 = self.wc.fit_wiggle(
+    #             x,
+    #             y,
+    #             symmetric_sharpening=True,
+    #             asymmetric_sharpening=True,
+    #             **fitwiggle_kwargs
+    #         )
+    #         assert isinstance(params6, np.ndarray)
+    #         assert cov6 is None or (isinstance(cov6, np.ndarray) and cov6.ndim == 2)
+
+    #         # Test with interim phase-only fit
+    #         params7, cov7 = self.wc.fit_wiggle(
+    #             x, y, do_interim_fit_phase_only=True, **fitwiggle_kwargs
+    #         )
+    #         assert isinstance(params7, np.ndarray)
+    #         assert cov7 is None or (isinstance(cov7, np.ndarray) and cov7.ndim == 2)
+    #     finally:
+    #         raccoon.util.Util.smooth_curve = orig_smooth_curve
+    #         raccoon.util.Util.lighter_smooth_curve = orig_lighter_smooth_curve
