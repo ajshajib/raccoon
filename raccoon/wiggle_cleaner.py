@@ -608,10 +608,10 @@ class WiggleCleaner(object):
         include_scatter=True,
         extract_covariance=True,
         outlier_rejection_method=None,
-        use_huber_loss=False,
-        huber_delta=1.35,
         fdr_alpha=0.01,
         fdr_outlier_max_fraction=0.1,
+        use_huber_loss=False,
+        huber_delta=1.35,
         sigma_clip_sigma=5,
         sigma_clip_max_iterations=5,
         symmetric_sharpening=False,
@@ -645,16 +645,16 @@ class WiggleCleaner(object):
         :param outlier_rejection_method: Outlier rejection method, "fdr" or
             "sigma_clip", set None to disable
         :type outlier_rejection_method: str
-        :param use_huber_loss: If True, use Huber loss function
-        :type use_huber_loss: bool
-        :param huber_delta: Delta for Huber loss function
-        :type huber_delta: float
         :param fdr_alpha: False discovery rate (FDR) correction threshold, smaller value
             will reject less outliers
         :type fdr_alpha: float
         :param fdr_outlier_max_fraction: Maximum fraction of outliers to reject using
             FDR
         :type fdr_outlier_max_fraction: float
+        :param use_huber_loss: If True, use Huber loss function for outlier rejection with FDR
+        :type use_huber_loss: bool
+        :param huber_delta: Delta for Huber loss function
+        :type huber_delta: float
         :param sigma_clip_sigma: Sigma threshold for sigma clipping
         :type sigma_clip_sigma: float
         :param sigma_clip_max_iterations: Number of sigma clip iterations
@@ -743,12 +743,8 @@ class WiggleCleaner(object):
 
         # fitting with the extracted wiggle signal in any case, as the fitted parameters
         # will be used as initial parameters when fitting the full spectra
-        is_turn_off_huber_loss = False
-        if outlier_rejection_method == "fdr":
-            if not self._use_huber_loss:
-                is_turn_off_huber_loss = True
-
-            self._use_huber_loss = True
+        if outlier_rejection_method != "fdr":
+            self._use_huber_loss = False
 
         # initial "robust" regression (using Huber loss)
         # here, fitting the wiggle signal that was extracted from the spectra using the template(s)
@@ -771,8 +767,7 @@ class WiggleCleaner(object):
 
             self._outlier_mask[clipped_pixels] = 0
 
-            if is_turn_off_huber_loss:
-                self._use_huber_loss = False
+            self._use_huber_loss = False
 
             result = least_squares(
                 self.get_residual_func(wiggle_signal, wiggle_noise),
@@ -789,8 +784,11 @@ class WiggleCleaner(object):
                 ]
             )
 
-            # reset outlier mask for full fit
+            # Reset outlier mask for full fit
             self._outlier_mask = np.ones_like(self._wavelengths)
+            # Turning on Huber loss again for the full fit if user_huber_loss is True
+            if outlier_rejection_method == "fdr" and use_huber_loss:
+                self._use_huber_loss = True
 
             result = least_squares(
                 self.residual_vector_full_fit,
@@ -827,8 +825,8 @@ class WiggleCleaner(object):
 
                 self._outlier_mask[clipped_pixels] = 0
 
-                if is_turn_off_huber_loss:
-                    self._use_huber_loss = False
+                # Turn off Huber loss for the final fit
+                self._use_huber_loss = False
 
                 result = least_squares(
                     self.get_residual_func(wiggle_signal, wiggle_noise),
@@ -1363,10 +1361,10 @@ class WiggleCleaner(object):
         extract_covariance=True,
         include_scatter=True,
         outlier_rejection_method=None,
-        use_huber_loss=False,
-        huber_delta=1.35,
         fdr_alpha=0.01,
         fdr_outlier_max_fraction=0.1,
+        use_huber_loss=False,
+        huber_delta=1.35,
         sigma_clip_sigma=5,
         sigma_clip_max_iterations=3,
         symmetric_sharpening=False,
@@ -1684,10 +1682,10 @@ class WiggleCleaner(object):
         conserve_flux=True,
         include_scatter=True,
         outlier_rejection_method="fdr",
-        use_huber_loss=False,
-        huber_delta=1.35,
         fdr_alpha=0.01,
         fdr_outlier_max_fraction=0.1,
+        use_huber_loss=False,
+        huber_delta=1.35,
         sigma_clip_sigma=5,
         sigma_clip_max_iterations=5,
         extract_uncertainty=True,
