@@ -98,6 +98,86 @@ class TestWorkflow:
         assert isinstance(result_params, tuple)
         assert isinstance(result_params[0], np.ndarray)
 
+    def test_fit_wiggle_with_sharpening(self):
+        """Test that fit_wiggle covers scatter and sharpening parameter branches."""
+        # Use a small cube and patch Util methods to avoid real fitting
+        aperture_radius = 4
+        annulus_outer_radius = 5
+        annulus_inner_radius = 3
+
+        # asymmetric sharpening only
+        result_params = self.wcleaner.fit_wiggle(
+            x=self.quasar_x,
+            y=self.quasar_y,
+            aperture_radius=aperture_radius,
+            annulus_outer_radius=annulus_outer_radius,
+            annulus_inner_radius=annulus_inner_radius,
+            plot=False,
+            n_amplitude=8,
+            n_frequency=5,
+            init_peak_detection_proximity_threshold=30,
+            verbose=False,
+            use_huber_loss=False,
+            outlier_rejection_method="fdr",
+            fdr_alpha=0.05,
+            fdr_outlier_max_fraction=0.2,
+            extract_covariance=True,
+            fit_full_model=True,
+            include_scatter=True,
+            asymmetric_sharpening=True,
+        )
+        assert isinstance(result_params, tuple)
+        assert isinstance(result_params[0], np.ndarray)
+
+        # symmetric sharpening only
+        result_params = self.wcleaner.fit_wiggle(
+            x=self.quasar_x,
+            y=self.quasar_y,
+            aperture_radius=aperture_radius,
+            annulus_outer_radius=annulus_outer_radius,
+            annulus_inner_radius=annulus_inner_radius,
+            plot=False,
+            n_amplitude=8,
+            n_frequency=5,
+            init_peak_detection_proximity_threshold=30,
+            verbose=False,
+            use_huber_loss=False,
+            outlier_rejection_method="fdr",
+            fdr_alpha=0.05,
+            fdr_outlier_max_fraction=0.2,
+            extract_covariance=True,
+            fit_full_model=True,
+            include_scatter=True,
+            asymmetric_sharpening=True,
+        )
+        assert isinstance(result_params, tuple)
+        assert isinstance(result_params[0], np.ndarray)
+
+        # both symmetric and asymmetric sharpening
+        result_params = self.wcleaner.fit_wiggle(
+            x=self.quasar_x,
+            y=self.quasar_y,
+            aperture_radius=aperture_radius,
+            annulus_outer_radius=annulus_outer_radius,
+            annulus_inner_radius=annulus_inner_radius,
+            plot=False,
+            n_amplitude=8,
+            n_frequency=5,
+            init_peak_detection_proximity_threshold=30,
+            verbose=False,
+            use_huber_loss=False,
+            outlier_rejection_method="fdr",
+            fdr_alpha=0.05,
+            fdr_outlier_max_fraction=0.2,
+            extract_covariance=True,
+            fit_full_model=True,
+            include_scatter=True,
+            asymmetric_sharpening=True,
+            symmetric_sharpening=True,
+        )
+        assert isinstance(result_params, tuple)
+        assert isinstance(result_params[0], np.ndarray)
+
     def test_fit_wiggle_with_model_selection(self):
         aperture_radius = 4
 
@@ -396,83 +476,3 @@ class TestWorkflow:
         assert cleaned_cube.shape == self.data_cube.shape
         assert cleaned_noise_cube.shape == self.data_cube.shape
         assert cleaned_map.shape == self.data_cube[0].shape
-
-    def test_fit_wiggle_with_sharpening(self):
-        """Test that fit_wiggle covers scatter and sharpening parameter branches."""
-        # Use a small cube and patch Util methods to avoid real fitting
-        aperture_radius = 4
-        annulus_outer_radius = 5
-        annulus_inner_radius = 3
-
-        # asymmetric sharpening only
-        result_params = self.wcleaner.fit_wiggle(
-            x=self.quasar_x,
-            y=self.quasar_y,
-            aperture_radius=aperture_radius,
-            annulus_outer_radius=annulus_outer_radius,
-            annulus_inner_radius=annulus_inner_radius,
-            plot=False,
-            n_amplitude=8,
-            n_frequency=5,
-            init_peak_detection_proximity_threshold=30,
-            verbose=False,
-            use_huber_loss=False,
-            outlier_rejection_method="fdr",
-            fdr_alpha=0.05,
-            fdr_outlier_max_fraction=0.2,
-            extract_covariance=True,
-            fit_full_model=True,
-            include_scatter=True,
-            asymmetric_sharpening=True,
-        )
-        assert isinstance(result_params, tuple)
-        assert isinstance(result_params[0], np.ndarray)
-
-        # symmetric sharpening only
-        result_params = self.wcleaner.fit_wiggle(
-            x=self.quasar_x,
-            y=self.quasar_y,
-            aperture_radius=aperture_radius,
-            annulus_outer_radius=annulus_outer_radius,
-            annulus_inner_radius=annulus_inner_radius,
-            plot=False,
-            n_amplitude=8,
-            n_frequency=5,
-            init_peak_detection_proximity_threshold=30,
-            verbose=False,
-            use_huber_loss=False,
-            outlier_rejection_method="fdr",
-            fdr_alpha=0.05,
-            fdr_outlier_max_fraction=0.2,
-            extract_covariance=True,
-            fit_full_model=True,
-            include_scatter=True,
-            asymmetric_sharpening=True,
-        )
-        assert isinstance(result_params, tuple)
-        assert isinstance(result_params[0], np.ndarray)
-
-        # both symmetric and asymmetric sharpening
-        result_params = self.wcleaner.fit_wiggle(
-            x=self.quasar_x,
-            y=self.quasar_y,
-            aperture_radius=aperture_radius,
-            annulus_outer_radius=annulus_outer_radius,
-            annulus_inner_radius=annulus_inner_radius,
-            plot=False,
-            n_amplitude=8,
-            n_frequency=5,
-            init_peak_detection_proximity_threshold=30,
-            verbose=False,
-            use_huber_loss=False,
-            outlier_rejection_method="fdr",
-            fdr_alpha=0.05,
-            fdr_outlier_max_fraction=0.2,
-            extract_covariance=True,
-            fit_full_model=True,
-            include_scatter=True,
-            asymmetric_sharpening=True,
-            symmetric_sharpening=True,
-        )
-        assert isinstance(result_params, tuple)
-        assert isinstance(result_params[0], np.ndarray)
