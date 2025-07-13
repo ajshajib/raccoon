@@ -76,6 +76,8 @@ class TestWorkflow:
         aperture_radius = 4
         annulus_outer_radius = 5
         annulus_inner_radius = 3
+        # Use a gap to trigger ax.axvspan and ax2.axvspan coverage
+        self.wcleaner.set_gaps([(self.wavelengths[10], self.wavelengths[20])])
         result_params = self.wcleaner.fit_wiggle(
             x=self.quasar_x,
             y=self.quasar_y,
@@ -85,7 +87,7 @@ class TestWorkflow:
             n_amplitude=8,
             n_frequency=5,
             init_peak_detection_proximity_threshold=30,
-            use_huber_loss=False,
+            use_huber_loss=True,
             outlier_rejection_method="fdr",
             fdr_alpha=0.05,
             fdr_outlier_max_fraction=0.2,
@@ -97,6 +99,8 @@ class TestWorkflow:
         )
         assert isinstance(result_params, tuple)
         assert isinstance(result_params[0], np.ndarray)
+        # Reset gaps for other tests
+        self.wcleaner.set_gaps([])
 
     def test_fit_wiggle_with_sharpening(self):
         """Test that fit_wiggle covers scatter and sharpening parameter branches."""
@@ -128,6 +132,31 @@ class TestWorkflow:
             aperture_radius = 4
             annulus_outer_radius = 5
             annulus_inner_radius = 3
+
+            # symmetric sharpening only
+            result_params = self.wcleaner.fit_wiggle(
+                x=self.quasar_x,
+                y=self.quasar_y,
+                aperture_radius=aperture_radius,
+                annulus_outer_radius=annulus_outer_radius,
+                annulus_inner_radius=annulus_inner_radius,
+                plot=False,
+                n_amplitude=8,
+                n_frequency=5,
+                init_peak_detection_proximity_threshold=30,
+                verbose=False,
+                use_huber_loss=False,
+                outlier_rejection_method="fdr",
+                fdr_alpha=0.05,
+                fdr_outlier_max_fraction=0.2,
+                extract_covariance=True,
+                fit_full_model=True,
+                include_scatter=True,
+                symmetric_sharpening=True,
+                asymmetric_sharpening=False,
+            )
+            assert isinstance(result_params, tuple)
+            assert isinstance(result_params[0], np.ndarray)
 
             # asymmetric sharpening only
             result_params = self.wcleaner.fit_wiggle(
