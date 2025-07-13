@@ -101,7 +101,6 @@ class TestWorkflow:
     def test_fit_wiggle_with_sharpening(self):
         """Test that fit_wiggle covers scatter and sharpening parameter branches."""
         # Patch Util.get_init_params_spline to always return finite, positive arrays
-        import types
         from raccoon import util as raccoon_util
 
         def dummy_get_init_params_spline(
