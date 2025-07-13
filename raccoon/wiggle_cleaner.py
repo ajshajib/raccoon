@@ -218,18 +218,7 @@ class WiggleCleaner(object):
             params, n_amplitude, n_frequency
         )
 
-        if self._asymmetric_sharpening and not self._symmetric_sharpening:
-            k_1 = params[-1]
-            k_2 = 0
-        elif self._symmetric_sharpening and not self._asymmetric_sharpening:
-            k_1 = 0
-            k_2 = params[-1]
-        elif self._symmetric_sharpening and self._asymmetric_sharpening:
-            k_1 = params[-2]
-            k_2 = params[-1]
-        else:
-            k_1 = 0
-            k_2 = 0
+        k_1, k_2 = self.get_k1_k2(params)
 
         wiggle_model = self.wiggle_func(
             self.scaled_w,
@@ -240,6 +229,62 @@ class WiggleCleaner(object):
             k_2=k_2,
         )
         return wiggle_model
+
+    def get_k1_k2(self, params):
+        """
+        Get the k_1 and k_2 parameters for asymmetric and symmetric sharpening from the params array.
+        :param params: Parameters
+        :type params: np.ndarray
+        :return: k_1 and k_2 parameters
+        :rtype: Tuple[float, float]
+        """
+        n_amplitude, n_frequency = self.configure_polynomial_ns()
+        add_one = 1 if self._include_scatter else 0
+        if self._asymmetric_sharpening and not self._symmetric_sharpening:
+            k_1 = params[n_amplitude + n_frequency + add_one + 5]
+            k_2 = 0
+        elif self._symmetric_sharpening and not self._asymmetric_sharpening:
+            k_1 = 0
+            k_2 = params[n_amplitude + n_frequency + add_one + 5]
+        elif self._symmetric_sharpening and self._asymmetric_sharpening:
+            k_1 = params[n_amplitude + n_frequency + add_one + 5]
+            k_2 = params[n_amplitude + n_frequency + add_one + 6]
+        else:
+            k_1 = 0
+            k_2 = 0
+        return k_1, k_2
+
+    def get_scatter_param(self, params):
+        """Get the scatter parameter from the params array.
+
+        :param params: Parameters
+        :type params: np.ndarray
+        :return: Scatter parameter
+        :rtype: float
+        """
+        n_amplitude, n_frequency = self.configure_polynomial_ns()
+
+        return params[n_amplitude + n_frequency + 5]
+
+    def get_exponent_param(self, params):
+        """Get the exponent parameter for the wavelength term in the power-law component of the continuum.
+
+        :param params: Parameters
+        :type params: np.ndarray
+        :return: Exponent parameter
+        :rtype: float
+        """
+        n_amplitude, n_frequency = self.configure_polynomial_ns()
+        add_one = 1 if self._include_scatter else 0
+        add_more = 0
+        if self._asymmetric_sharpening and not self._symmetric_sharpening:
+            add_more = 1
+        elif self._symmetric_sharpening and not self._asymmetric_sharpening:
+            add_more = 1
+        elif self._symmetric_sharpening and self._asymmetric_sharpening:
+            add_more = 2
+
+        return params[n_amplitude + n_frequency + add_one + add_more + 5]
 
     def split_params(self, params, n_amplitude=None, n_frequency=None):
         """Split the parameters. Opposite of the set_params function.
@@ -362,13 +407,13 @@ class WiggleCleaner(object):
 
         # fit c_1 * aperture_spectra + c_3 * wavelengths**a + \sum_i c_i * wavelengths**i + c_N * annulus_spectra
         # given non-linear parameter a, treat all c_i parameters as linear parameters and derive them using linear inversion
-        wiggle_model = self.wiggle_model(params[:-1])
+        wiggle_model = self.wiggle_model(params)
 
         A = self.get_design_matrix(
             aperture_spectra,
             annulus_spectra,
             annulus_outer_radius,
-            params[-1],
+            self.get_exponent_param(params),
             wavelengths,
         )
 
@@ -484,7 +529,7 @@ class WiggleCleaner(object):
             residual = np.sqrt(np.abs(2 * huber_loss)) * np.sign(residual)
 
         if self._include_scatter:
-            scatter_f = np.exp(params[-1])
+            scatter_f = np.exp(self.get_scatter_param(params))
             total_noise = np.sqrt(total_uncertainty**2 + scatter_f**2 * full_model**2)
             residual = np.sqrt(
                 (
@@ -511,8 +556,7 @@ class WiggleCleaner(object):
         model = self.wiggle_model(params)
 
         if self._include_scatter:
-            n_amplitude, n_frequency = self.configure_polynomial_ns()
-            scatter_f = np.exp(params[n_amplitude + n_frequency + 4 + 1])
+            scatter_f = np.exp(self.get_scatter_param(params))
             total_noise = np.sqrt(wiggle_noise**2 + scatter_f**2 * model**2)
         else:
             total_noise = wiggle_noise
@@ -778,6 +822,7 @@ class WiggleCleaner(object):
         result_params = result.x
 
         if fit_full_model:
+            # Add a parameter for the exponent of the wavelength term in the power-law component of the continuum
             x0 = np.concatenate(
                 [
                     result_params,
@@ -1261,8 +1306,8 @@ class WiggleCleaner(object):
         best_model, _ = model(result.x)
 
         model_noise_fraction = (aperture_noise / aperture_spectra) ** 2
-        # if annulus_outer_radius > 0:
-        #     model_noise_fraction += (annulus_noise / annulus_spectra) ** 2
+        if annulus_outer_radius > annulus_inner_radius:
+            model_noise_fraction += (annulus_noise / annulus_spectra) ** 2
 
         wiggle_signal = spectra / best_model
         wiggle_noise = (
@@ -1466,10 +1511,6 @@ class WiggleCleaner(object):
         elif min_n_frequency < 2:
             raise ValueError("min_n_frequency must be at least 2")
 
-        # wiggle_signal, wiggle_noise = self.get_wiggle_signal(
-        #     x, y, aperture_radius, annulus_outer_radius, annulus_inner_radius
-        # )
-
         best_metric = None
         for k in tqdm(range(min_n_frequency, n_frequency + 1)):
             for i in range(min_n_amplitude, n_amplitude + 1):
@@ -1560,14 +1601,6 @@ class WiggleCleaner(object):
         self._n_amplitude = best_n_amplitude
         self._n_frequency = best_n_frequency
 
-        # if plot:
-        #     self.plot_model(
-        #         wiggle_signal,
-        #         wiggle_noise,
-        #         best_params,
-        #         cov_matrix=cov_matrix,
-        #     )
-
         return best_params, cov_matrix
 
     def get_model_selection_metric(
@@ -1628,15 +1661,6 @@ class WiggleCleaner(object):
         null_residual = wiggle_signal - np.ones_like(wiggle_signal)
         n_data = np.sum(self._gap_mask)
 
-        # p = np.percentile(np.abs(residual), 97.5)
-        # indices = np.abs(residual) < p
-        # model = self.wiggle_model(result_params)
-        # if self._include_scatter:
-        #     n_amplitude, n_frequency = self.configure_polynomial_ns()
-        #     scatter_f = np.exp(result_params[n_amplitude + n_frequency + 4 + 1])
-        #     total_noise = np.sqrt(noise**2 + scatter_f**2 * model**2)
-        # else:
-        #     total_noise = noise
         total_noise = wiggle_noise
 
         chi2 = np.sum(
@@ -1708,8 +1732,8 @@ class WiggleCleaner(object):
         min_selection_difference=None,
         num_samples_uncertainty_region=1000,
         verbose=True,
-        plot=False,
-        fit_full_model=False,
+        plot=True,
+        fit_full_model=True,
     ):
         """Clean the datacube.
 
@@ -1826,7 +1850,7 @@ class WiggleCleaner(object):
                             sigma_clip_max_iterations=sigma_clip_max_iterations,
                             symmetric_sharpening=symmetric_sharpening,
                             asymmetric_sharpening=asymmetric_sharpening,
-                            plot=plot,
+                            plot=False,
                             fit_full_model=False,  # do not fit the full model for detection
                         )
                     )
@@ -1848,34 +1872,30 @@ class WiggleCleaner(object):
                         if min_n_amplitude is None or min_n_frequency is None:
                             # performing model fitting with the specified n_amplitude and n_frequency,
                             # if they are not equal to n_amplitude_for_detection and n_frequency_for_detection
-                            if (
-                                n_amplitude_for_detection != n_amplitude
-                                or n_frequency_for_detection != n_frequency
-                            ):
-                                result_params, cov_matrix, _, _ = self.fit_wiggle(
-                                    i,
-                                    j,
-                                    aperture_radius=aperture_radius,
-                                    annulus_outer_radius=annulus_outer_radius,
-                                    annulus_inner_radius=annulus_inner_radius,
-                                    n_amplitude=n_amplitude,
-                                    n_frequency=n_frequency,
-                                    specified_noise_level=specified_noise_level,
-                                    init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
-                                    include_scatter=include_scatter,
-                                    outlier_rejection_method=outlier_rejection_method,
-                                    use_huber_loss=use_huber_loss,
-                                    huber_delta=huber_delta,
-                                    fdr_alpha=fdr_alpha,
-                                    fdr_outlier_max_fraction=fdr_outlier_max_fraction,
-                                    extract_covariance=extract_uncertainty,
-                                    sigma_clip_sigma=sigma_clip_sigma,
-                                    sigma_clip_max_iterations=sigma_clip_max_iterations,
-                                    symmetric_sharpening=symmetric_sharpening,
-                                    asymmetric_sharpening=asymmetric_sharpening,
-                                    plot=plot,
-                                    fit_full_model=fit_full_model,
-                                )
+                            result_params, cov_matrix, _, _ = self.fit_wiggle(
+                                i,
+                                j,
+                                aperture_radius=aperture_radius,
+                                annulus_outer_radius=annulus_outer_radius,
+                                annulus_inner_radius=annulus_inner_radius,
+                                n_amplitude=n_amplitude,
+                                n_frequency=n_frequency,
+                                specified_noise_level=specified_noise_level,
+                                init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
+                                include_scatter=include_scatter,
+                                outlier_rejection_method=outlier_rejection_method,
+                                use_huber_loss=use_huber_loss,
+                                huber_delta=huber_delta,
+                                fdr_alpha=fdr_alpha,
+                                fdr_outlier_max_fraction=fdr_outlier_max_fraction,
+                                extract_covariance=extract_uncertainty,
+                                sigma_clip_sigma=sigma_clip_sigma,
+                                sigma_clip_max_iterations=sigma_clip_max_iterations,
+                                symmetric_sharpening=symmetric_sharpening,
+                                asymmetric_sharpening=asymmetric_sharpening,
+                                plot=plot,
+                                fit_full_model=fit_full_model,
+                            )
                         else:
                             # performing model selection as min_n_amplitude and min_n_frequency are set
                             result_params, cov_matrix = (
@@ -1902,7 +1922,7 @@ class WiggleCleaner(object):
                                     sigma_clip_max_iterations=sigma_clip_max_iterations,
                                     symmetric_sharpening=symmetric_sharpening,
                                     asymmetric_sharpening=asymmetric_sharpening,
-                                    plot=False,
+                                    plot=plot,
                                     fit_full_model=fit_full_model,
                                     selection_criteria=selection_criteria,
                                     min_selection_difference=min_selection_difference,
@@ -1952,21 +1972,6 @@ class WiggleCleaner(object):
                             )
                             * self.cleaned_datacube[:, i, j]
                         )
-                        # plt.plot(
-                        #     self._wavelengths,
-                        #     self._datacube[:, i, j],
-                        #     label="Original",
-                        #     color=self.RED,
-                        # )
-                        # plt.plot(
-                        #     self._wavelengths,
-                        #     self.cleaned_datacube[:, i, j],
-                        #     label="Cleaned",
-                        #     color=self.GREY,
-                        #     ls="--",
-                        # )
-                        # plt.xlim(10500, 11600)
-                        # plt.show()
                     else:
                         if verbose:
                             print(
