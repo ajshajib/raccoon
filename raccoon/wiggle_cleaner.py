@@ -70,7 +70,6 @@ class WiggleCleaner(object):
         self._amplitude_spline = None
         self._frequency_spline = None
 
-        self._include_scatter = False
         self._use_huber_loss = False
         self._huber_delta = 1.35
 
@@ -239,32 +238,19 @@ class WiggleCleaner(object):
         :rtype: Tuple[float, float]
         """
         n_amplitude, n_frequency = self.configure_polynomial_ns()
-        add_one = 1 if self._include_scatter else 0
         if self._asymmetric_sharpening and not self._symmetric_sharpening:
-            k_1 = params[n_amplitude + n_frequency + add_one + 5]
+            k_1 = params[n_amplitude + n_frequency + 5]
             k_2 = 0
         elif self._symmetric_sharpening and not self._asymmetric_sharpening:
             k_1 = 0
-            k_2 = params[n_amplitude + n_frequency + add_one + 5]
+            k_2 = params[n_amplitude + n_frequency + 5]
         elif self._symmetric_sharpening and self._asymmetric_sharpening:
-            k_1 = params[n_amplitude + n_frequency + add_one + 5]
-            k_2 = params[n_amplitude + n_frequency + add_one + 6]
+            k_1 = params[n_amplitude + n_frequency + 5]
+            k_2 = params[n_amplitude + n_frequency + 6]
         else:
             k_1 = 0
             k_2 = 0
         return k_1, k_2
-
-    def get_scatter_param(self, params):
-        """Get the scatter parameter from the params array.
-
-        :param params: Parameters
-        :type params: np.ndarray
-        :return: Scatter parameter
-        :rtype: float
-        """
-        n_amplitude, n_frequency = self.configure_polynomial_ns()
-
-        return params[n_amplitude + n_frequency + 5]
 
     def get_exponent_param(self, params):
         """Get the exponent parameter for the wavelength term in the power-law component of the continuum.
@@ -275,7 +261,6 @@ class WiggleCleaner(object):
         :rtype: float
         """
         n_amplitude, n_frequency = self.configure_polynomial_ns()
-        add_one = 1 if self._include_scatter else 0
         add_more = 0
         if self._asymmetric_sharpening and not self._symmetric_sharpening:
             add_more = 1
@@ -284,7 +269,7 @@ class WiggleCleaner(object):
         elif self._symmetric_sharpening and self._asymmetric_sharpening:
             add_more = 2
 
-        return params[n_amplitude + n_frequency + add_one + add_more + 5]
+        return params[n_amplitude + n_frequency + add_more + 5]
 
     def split_params(self, params, n_amplitude=None, n_frequency=None):
         """Split the parameters. Opposite of the set_params function.
@@ -528,17 +513,6 @@ class WiggleCleaner(object):
             huber_loss = huber(self._huber_delta, residual)
             residual = np.sqrt(np.abs(2 * huber_loss)) * np.sign(residual)
 
-        if self._include_scatter:
-            scatter_f = np.exp(self.get_scatter_param(params))
-            total_noise = np.sqrt(total_uncertainty**2 + scatter_f**2 * full_model**2)
-            residual = np.sqrt(
-                (
-                    residual**2
-                    + np.log(2 * np.pi * total_noise**2)
-                    - np.min(np.log(2 * np.pi * total_noise**2))
-                )
-            ) * np.sign(residual)
-
         return residual
 
     def residual_vector(self, params, wiggle_signal, wiggle_noise):
@@ -554,29 +528,12 @@ class WiggleCleaner(object):
         :rtype: np.ndarray
         """
         model = self.wiggle_model(params)
-
-        if self._include_scatter:
-            scatter_f = np.exp(self.get_scatter_param(params))
-            total_noise = np.sqrt(wiggle_noise**2 + scatter_f**2 * model**2)
-        else:
-            total_noise = wiggle_noise
-
+        total_noise = wiggle_noise
         residual = (model - wiggle_signal) / total_noise
         residual = residual * self._gap_mask * self._outlier_mask
-
         if self._use_huber_loss:
             huber_loss = huber(self._huber_delta, residual)
             residual = np.sqrt(np.abs(2 * huber_loss)) * np.sign(residual)
-
-        if self._include_scatter:
-            residual = np.sqrt(
-                (
-                    residual**2
-                    + np.log(2 * np.pi * total_noise**2)
-                    - np.min(np.log(2 * np.pi * wiggle_noise**2))
-                )
-            ) * np.sign(residual)
-
         return residual
 
     def cost_function(self, params, wiggle_signal, wiggle_noise):
@@ -650,7 +607,6 @@ class WiggleCleaner(object):
         specified_noise_level=0,
         init_peak_detection_proximity_threshold=200,
         do_interim_fit_phase_only=False,
-        include_scatter=True,
         extract_covariance=True,
         outlier_rejection_method=None,
         fdr_alpha=0.01,
@@ -717,7 +673,6 @@ class WiggleCleaner(object):
             x, y, aperture_radius, annulus_outer_radius, annulus_inner_radius
         )
 
-        self._include_scatter = include_scatter
         self._outlier_rejection_method = outlier_rejection_method
         self._use_huber_loss = use_huber_loss
         self._huber_delta = huber_delta
@@ -776,9 +731,6 @@ class WiggleCleaner(object):
                 n_amplitude=n_amplitude,
                 n_frequency=n_frequency,
             )
-
-        if self._include_scatter:
-            x0 = np.concatenate([x0, np.array([-2])])
 
         # Add parameters for asymmetric and symmetric sharpening
         if self._symmetric_sharpening and self._asymmetric_sharpening:
@@ -1416,7 +1368,6 @@ class WiggleCleaner(object):
         selection_criteria="bic",
         min_selection_difference=None,
         extract_covariance=True,
-        include_scatter=True,
         outlier_rejection_method=None,
         fdr_alpha=0.01,
         fdr_outlier_max_fraction=0.1,
@@ -1527,7 +1478,6 @@ class WiggleCleaner(object):
                         init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
                         plot=False,
                         extract_covariance=extract_covariance,
-                        include_scatter=include_scatter,
                         outlier_rejection_method=outlier_rejection_method,
                         use_huber_loss=use_huber_loss,
                         huber_delta=huber_delta,
@@ -1582,7 +1532,6 @@ class WiggleCleaner(object):
             specified_noise_level=specified_noise_level,
             init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
             extract_covariance=extract_covariance,
-            include_scatter=include_scatter,
             outlier_rejection_method=outlier_rejection_method,
             use_huber_loss=use_huber_loss,
             huber_delta=huber_delta,
@@ -1717,7 +1666,6 @@ class WiggleCleaner(object):
         annulus_outer_radius=0,
         annulus_inner_radius=0,
         conserve_flux=True,
-        include_scatter=True,
         outlier_rejection_method="fdr",
         fdr_alpha=0.01,
         fdr_outlier_max_fraction=0.1,
@@ -1765,8 +1713,6 @@ class WiggleCleaner(object):
         :type conserve_flux: bool
         :param cleaning_mask: Mask for cleaning, if None, clean all spaxels
         :type cleaning_mask: np.ndarray
-        :param include_scatter: If True, include scatter in the model
-        :type include_scatter: bool
         :param outlier_rejection_method: Outlier rejection method, "fdr" or "sigma_clip", set None to disable
         :type outlier_rejection_method: str
         :param use_huber_loss: If True, use Huber loss function
@@ -1839,7 +1785,6 @@ class WiggleCleaner(object):
                             n_frequency=n_frequency_for_detection,
                             specified_noise_level=specified_noise_level,
                             init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
-                            include_scatter=include_scatter,
                             outlier_rejection_method=outlier_rejection_method,
                             use_huber_loss=use_huber_loss,
                             huber_delta=huber_delta,
@@ -1882,7 +1827,6 @@ class WiggleCleaner(object):
                                 n_frequency=n_frequency,
                                 specified_noise_level=specified_noise_level,
                                 init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
-                                include_scatter=include_scatter,
                                 outlier_rejection_method=outlier_rejection_method,
                                 use_huber_loss=use_huber_loss,
                                 huber_delta=huber_delta,
@@ -1911,7 +1855,6 @@ class WiggleCleaner(object):
                                     min_n_frequency=min_n_frequency,
                                     specified_noise_level=specified_noise_level,
                                     init_peak_detection_proximity_threshold=init_peak_detection_proximity_threshold,
-                                    include_scatter=include_scatter,
                                     outlier_rejection_method=outlier_rejection_method,
                                     use_huber_loss=use_huber_loss,
                                     huber_delta=huber_delta,

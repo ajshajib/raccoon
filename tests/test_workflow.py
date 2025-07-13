@@ -93,7 +93,6 @@ class TestWorkflow:
             fdr_outlier_max_fraction=0.2,
             extract_covariance=True,
             fit_full_model=True,
-            include_scatter=False,
             verbose=True,
             plot=True,
         )
@@ -103,7 +102,7 @@ class TestWorkflow:
         self.wcleaner.set_gaps([])
 
     def test_fit_wiggle_with_sharpening(self):
-        """Test that fit_wiggle covers scatter and sharpening parameter branches."""
+        """Test that fit_wiggle covers sharpening parameter branches."""
         # Patch Util.get_init_params_spline to always return finite, positive arrays
         from raccoon import util as raccoon_util
 
@@ -151,7 +150,6 @@ class TestWorkflow:
                 fdr_outlier_max_fraction=0.2,
                 extract_covariance=True,
                 fit_full_model=True,
-                include_scatter=True,
                 symmetric_sharpening=True,
                 asymmetric_sharpening=False,
             )
@@ -176,7 +174,6 @@ class TestWorkflow:
                 fdr_outlier_max_fraction=0.2,
                 extract_covariance=True,
                 fit_full_model=True,
-                include_scatter=True,
                 asymmetric_sharpening=True,
             )
             assert isinstance(result_params, tuple)
@@ -200,7 +197,6 @@ class TestWorkflow:
                 fdr_outlier_max_fraction=0.2,
                 extract_covariance=True,
                 fit_full_model=True,
-                include_scatter=True,
                 asymmetric_sharpening=True,
                 symmetric_sharpening=True,
             )
@@ -226,7 +222,6 @@ class TestWorkflow:
             min_n_frequency=2,
             selection_criteria="bic",
             init_peak_detection_proximity_threshold=200,
-            include_scatter=False,
             outlier_rejection_method="fdr",
             use_huber_loss=False,
             fdr_alpha=0.01,
@@ -249,7 +244,6 @@ class TestWorkflow:
             min_n_frequency=2,
             selection_criteria="chi2",
             init_peak_detection_proximity_threshold=200,
-            include_scatter=False,
             outlier_rejection_method="fdr",
             use_huber_loss=False,
             fdr_alpha=0.01,
@@ -272,7 +266,6 @@ class TestWorkflow:
             min_n_frequency=2,
             selection_criteria="bic",
             init_peak_detection_proximity_threshold=200,
-            include_scatter=False,
             outlier_rejection_method="sigma_clip",
             sigma_clip_sigma=3,
             sigma_clip_max_iterations=2,
@@ -297,7 +290,6 @@ class TestWorkflow:
                 min_n_frequency=1,
                 selection_criteria="bic",
                 init_peak_detection_proximity_threshold=200,
-                include_scatter=False,
                 outlier_rejection_method="sigma_clip",
                 sigma_clip_sigma=3,
                 sigma_clip_max_iterations=2,
@@ -322,7 +314,6 @@ class TestWorkflow:
                 min_n_frequency=2,
                 selection_criteria="bic",
                 init_peak_detection_proximity_threshold=200,
-                include_scatter=False,
                 outlier_rejection_method="sigma_clip",
                 sigma_clip_sigma=3,
                 sigma_clip_max_iterations=2,
@@ -362,7 +353,6 @@ class TestWorkflow:
             plot=False,
             verbose=True,
             extract_uncertainty=True,
-            include_scatter=False,
             outlier_rejection_method="fdr",
             use_huber_loss=False,
             fdr_alpha=0.01,
@@ -405,7 +395,6 @@ class TestWorkflow:
             plot=False,
             verbose=True,
             extract_uncertainty=True,
-            include_scatter=False,
             outlier_rejection_method="fdr",
             use_huber_loss=False,
             fdr_alpha=0.01,
@@ -448,7 +437,6 @@ class TestWorkflow:
             plot=False,
             verbose=True,
             extract_uncertainty=True,
-            include_scatter=False,
             outlier_rejection_method="fdr",
             use_huber_loss=False,
             fdr_alpha=0.01,
@@ -495,7 +483,6 @@ class TestWorkflow:
             plot=False,
             verbose=True,
             extract_uncertainty=True,
-            include_scatter=False,
             outlier_rejection_method="fdr",
             use_huber_loss=False,
             fdr_alpha=0.01,
