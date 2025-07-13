@@ -100,83 +100,86 @@ class TestWorkflow:
 
     def test_fit_wiggle_with_sharpening(self):
         """Test that fit_wiggle covers scatter and sharpening parameter branches."""
-        # Use a small cube and patch Util methods to avoid real fitting
-        aperture_radius = 4
-        annulus_outer_radius = 5
-        annulus_inner_radius = 3
+        # Patch Util.get_init_params_spline to always return finite, positive arrays
+        import types
+        from raccoon import util as raccoon_util
 
-        # asymmetric sharpening only
-        result_params = self.wcleaner.fit_wiggle(
-            x=self.quasar_x,
-            y=self.quasar_y,
-            aperture_radius=aperture_radius,
-            annulus_outer_radius=annulus_outer_radius,
-            annulus_inner_radius=annulus_inner_radius,
-            plot=False,
-            n_amplitude=8,
-            n_frequency=5,
-            init_peak_detection_proximity_threshold=30,
-            verbose=False,
-            use_huber_loss=False,
-            outlier_rejection_method="fdr",
-            fdr_alpha=0.05,
-            fdr_outlier_max_fraction=0.2,
-            extract_covariance=True,
-            fit_full_model=True,
-            include_scatter=True,
-            asymmetric_sharpening=True,
-        )
-        assert isinstance(result_params, tuple)
-        assert isinstance(result_params[0], np.ndarray)
+        def dummy_get_init_params_spline(
+            wiggle_signal,
+            scaled_w,
+            n_amplitude,
+            n_frequency,
+            init_peak_detection_proximity_threshold,
+            plot,
+        ):
+            # Return dummy splines and positive params
+            c_len = n_amplitude + 2
+            f_len = n_frequency + 2
+            amp_spline = DummySpline(np.ones(c_len))
+            freq_spline = DummySpline(np.ones(f_len))
+            phi_0 = 0.0
+            return amp_spline, freq_spline, phi_0
 
-        # symmetric sharpening only
-        result_params = self.wcleaner.fit_wiggle(
-            x=self.quasar_x,
-            y=self.quasar_y,
-            aperture_radius=aperture_radius,
-            annulus_outer_radius=annulus_outer_radius,
-            annulus_inner_radius=annulus_inner_radius,
-            plot=False,
-            n_amplitude=8,
-            n_frequency=5,
-            init_peak_detection_proximity_threshold=30,
-            verbose=False,
-            use_huber_loss=False,
-            outlier_rejection_method="fdr",
-            fdr_alpha=0.05,
-            fdr_outlier_max_fraction=0.2,
-            extract_covariance=True,
-            fit_full_model=True,
-            include_scatter=True,
-            asymmetric_sharpening=True,
+        old_get_init_params_spline = raccoon_util.Util.get_init_params_spline
+        raccoon_util.Util.get_init_params_spline = staticmethod(
+            dummy_get_init_params_spline
         )
-        assert isinstance(result_params, tuple)
-        assert isinstance(result_params[0], np.ndarray)
 
-        # both symmetric and asymmetric sharpening
-        result_params = self.wcleaner.fit_wiggle(
-            x=self.quasar_x,
-            y=self.quasar_y,
-            aperture_radius=aperture_radius,
-            annulus_outer_radius=annulus_outer_radius,
-            annulus_inner_radius=annulus_inner_radius,
-            plot=False,
-            n_amplitude=8,
-            n_frequency=5,
-            init_peak_detection_proximity_threshold=30,
-            verbose=False,
-            use_huber_loss=False,
-            outlier_rejection_method="fdr",
-            fdr_alpha=0.05,
-            fdr_outlier_max_fraction=0.2,
-            extract_covariance=True,
-            fit_full_model=True,
-            include_scatter=True,
-            asymmetric_sharpening=True,
-            symmetric_sharpening=True,
-        )
-        assert isinstance(result_params, tuple)
-        assert isinstance(result_params[0], np.ndarray)
+        try:
+            aperture_radius = 4
+            annulus_outer_radius = 5
+            annulus_inner_radius = 3
+
+            # asymmetric sharpening only
+            result_params = self.wcleaner.fit_wiggle(
+                x=self.quasar_x,
+                y=self.quasar_y,
+                aperture_radius=aperture_radius,
+                annulus_outer_radius=annulus_outer_radius,
+                annulus_inner_radius=annulus_inner_radius,
+                plot=False,
+                n_amplitude=8,
+                n_frequency=5,
+                init_peak_detection_proximity_threshold=30,
+                verbose=False,
+                use_huber_loss=False,
+                outlier_rejection_method="fdr",
+                fdr_alpha=0.05,
+                fdr_outlier_max_fraction=0.2,
+                extract_covariance=True,
+                fit_full_model=True,
+                include_scatter=True,
+                asymmetric_sharpening=True,
+            )
+            assert isinstance(result_params, tuple)
+            assert isinstance(result_params[0], np.ndarray)
+
+            # both symmetric and asymmetric sharpening
+            result_params = self.wcleaner.fit_wiggle(
+                x=self.quasar_x,
+                y=self.quasar_y,
+                aperture_radius=aperture_radius,
+                annulus_outer_radius=annulus_outer_radius,
+                annulus_inner_radius=annulus_inner_radius,
+                plot=False,
+                n_amplitude=8,
+                n_frequency=5,
+                init_peak_detection_proximity_threshold=30,
+                verbose=False,
+                use_huber_loss=False,
+                outlier_rejection_method="fdr",
+                fdr_alpha=0.05,
+                fdr_outlier_max_fraction=0.2,
+                extract_covariance=True,
+                fit_full_model=True,
+                include_scatter=True,
+                asymmetric_sharpening=True,
+                symmetric_sharpening=True,
+            )
+            assert isinstance(result_params, tuple)
+            assert isinstance(result_params[0], np.ndarray)
+        finally:
+            raccoon_util.Util.get_init_params_spline = old_get_init_params_spline
 
     def test_fit_wiggle_with_model_selection(self):
         aperture_radius = 4

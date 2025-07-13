@@ -1497,6 +1497,7 @@ class WiggleCleaner(object):
                         symmetric_sharpening=symmetric_sharpening,
                         asymmetric_sharpening=asymmetric_sharpening,
                         fit_full_model=fit_full_model,
+                        verbose=False,
                     )
                 )
 
