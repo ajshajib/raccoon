@@ -399,7 +399,8 @@ class WiggleCleaner(object):
     ):
         """Get the design matrix for the full model fit.
 
-        :param a: Non-linear parameter, the exponent for the wavelength term in power-law component of the continuum
+        :param a: Non-linear parameter, the exponent for the wavelength term in power-
+            law component of the continuum
         :type a: float
         :param annulus_outer_radius: Outer radius of the annulus
         :type annulus_outer_radius: float
