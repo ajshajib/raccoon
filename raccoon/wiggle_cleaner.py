@@ -617,9 +617,9 @@ class WiggleCleaner(object):
         sigma_clip_max_iterations=5,
         symmetric_sharpening=False,
         asymmetric_sharpening=False,
-        plot=False,
-        verbose=False,
-        fit_full_model=False,
+        plot=True,
+        verbose=True,
+        fit_full_model=True,
     ):
         """Fit the wiggle data.
 
@@ -850,7 +850,7 @@ class WiggleCleaner(object):
 
             if plot:
                 self.plot_full_fit_model(
-                    bestfit_model, model_uncertainty, spectra, noise
+                    bestfit_model, model_uncertainty, spectra, noise, wiggle_model
                 )
 
         if extract_covariance:
@@ -909,7 +909,9 @@ class WiggleCleaner(object):
 
         return result_params, cov_matrix, wiggle_signal, wiggle_noise
 
-    def plot_full_fit_model(self, bestfit_model, model_uncertainty, spectra, noise):
+    def plot_full_fit_model(
+        self, bestfit_model, model_uncertainty, spectra, noise, wiggle_model=None
+    ):
         """Plot the full fit model.
 
         :param bestfit_model: Best fit model
@@ -951,6 +953,15 @@ class WiggleCleaner(object):
             lw=1,
             c=self.BLUE,
         )
+        if wiggle_model is not None:
+            ax.plot(
+                self._wavelengths,
+                spectra / wiggle_model,
+                label="Corrected spectra",
+                lw=1,
+                ls="--",
+                c="k",
+            )
         ax.legend()
         ax.tick_params(labelbottom=False)  # Hide x tick labels on top axis
         ax.set_ylabel("Flux")

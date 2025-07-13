@@ -130,11 +130,15 @@ class TestWiggleCleaner:
         n_wave = self.wc._datacube.shape[0]
         params = np.ones(12)
         try:
-            model, signal, noise = self.wc.model_full_fit(params, 0, 0, 1)
+            model, model_uncertainty, signal, noise = self.wc.model_full_fit(
+                params, 0, 0, 1
+            )
             assert isinstance(model, np.ndarray)
+            assert isinstance(model_uncertainty, np.ndarray)
             assert isinstance(signal, np.ndarray)
             assert isinstance(noise, np.ndarray)
             assert model.shape == (n_wave,)
+            assert model_uncertainty.shape == (n_wave,)
             assert signal.shape == (n_wave,)
             assert noise.shape == (n_wave,)
         except NotImplementedError:
@@ -147,8 +151,13 @@ class TestWiggleCleaner:
         """Explicitly test residual_vector_full_fit covers all lines and output
         shape."""
         # Mock model_full_fit to return known arrays
-        arr = np.arange(10.0)
-        self.wc.model_full_fit = lambda *a, **kw: (arr + 1, arr, np.ones_like(arr) * 2)
+        arr = np.arange(50)
+        self.wc.model_full_fit = lambda *a, **kw: (
+            arr + 1,
+            np.ones_like(arr) * 2,
+            arr,
+            np.ones_like(arr) * 3,
+        )
         params = np.ones(7)
         out = self.wc.residual_vector_full_fit(params, 2, 2, 1)
         # Should be ((arr+1) - arr) / 2 = 0.5 everywhere
