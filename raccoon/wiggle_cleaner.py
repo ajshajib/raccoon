@@ -231,8 +231,9 @@ class WiggleCleaner(object):
         return wiggle_model
 
     def get_k1_k2(self, params):
-        """
-        Get the k_1 and k_2 parameters for asymmetric and symmetric sharpening from the params array.
+        """Get the k_1 and k_2 parameters for asymmetric and symmetric sharpening from
+        the params array.
+
         :param params: Parameters
         :type params: np.ndarray
         :return: k_1 and k_2 parameters
@@ -267,7 +268,8 @@ class WiggleCleaner(object):
         return params[n_amplitude + n_frequency + 5]
 
     def get_exponent_param(self, params):
-        """Get the exponent parameter for the wavelength term in the power-law component of the continuum.
+        """Get the exponent parameter for the wavelength term in the power-law component
+        of the continuum.
 
         :param params: Parameters
         :type params: np.ndarray
