@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 __author__ = "ajshajib"
 
 import numpy as np
