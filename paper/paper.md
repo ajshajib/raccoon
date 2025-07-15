@@ -42,7 +42,7 @@ The JWST NIRSpec's IFS mode [@Boker23] enables spatially resolved infrared spect
 Since the wiggles in the single-spaxel spectra in the reduced JWST NIRSpec datacube are artifacts due to resampling noise from PSF undersampling, dithering can be used in principle to mitigate the issue of PSF undersampling and thus the wiggles. However, the typically adopted 4-point dither pattern is still insufficient to recover the optimal sampling and completely eliminate the wiggles in the rectified datacube [@Law23]. The wiggles are washed out in spectra summed from multiple spaxels within a sufficiently large aperture (illustrated in Fig. \ref{wiggled-in-spectra}). This provides a basis for making an empirical correction for the wiggles by comparing the single-spaxel spectrum to the one summed within an aperture around it. This principle was also used by previous corrective algorithms such as @Perna23 and in the Python routine `WICKED` [@Dumont25].
 
 
-![Illustration of the wiggles in the single-spaxel spectrum (blue), which is a manifestation of the resampling noise in the standard-pipeline-reduced datacube due to PSF undersampling. The orange spectrum shows the aperture-summed spectrum within a 4-spaxel radius. The illustrated data are of a quasar from @Perna23.](./single_spaxel_vs_aperture_summed.png){#wiggled-in-spectra}
+![Illustration of the wiggles in the single-spaxel spectrum (blue), which is a manifestation of the resampling noise in the standard-pipeline-reduced datacube due to PSF undersampling. The orange spectrum shows the aperture-summed spectrum within a 4-spaxel radius. The illustrated data are of an active galactic nucleus (AGN) from @Perna23.](./single_spaxel_vs_aperture_summed.png){#wiggled-in-spectra}
 
 In `raccoon`, the wiggle is modeled as a sinusoidal chirp function
 $$
@@ -64,7 +64,7 @@ The functions $A(\lambda)$ and $\phi_\lambda$ are modeled with B-splines, with t
 $$
 \chi^2 = \sum_{i} \frac{(D_i - M_i)^2}{\sigma_i^2},
 $$
-where the index $i$ runs across the wavelength pixels and $\sigma_{i}$ is the associated noise level. Figure \ref{full-fit-example} illustrates an example of the fitted model to a given spectrum (of an active galactic nucleus). In this example, `raccoon`'s robust performance is demonstrated in fitting the given spectrum while modeling the wiggle signal (Figure \ref{wiggle-model-example}). The user can mask out regions of the spectrum that have strong features potentially impacting the quality of the fit, or optionally adopt outlier rejection in the fit using the false discovery rate method [@Benjamini95] or sigma-clipping.
+where the index $i$ runs across the wavelength pixels and $\sigma_{i}$ is the associated noise level. Figure \ref{full-fit-example} illustrates an example of the fitted model to a given spectrum (of an AGN). In this example, `raccoon`'s robust performance is demonstrated in fitting the given spectrum while modeling the wiggle signal (Figure \ref{wiggle-model-example}). The user can mask out regions of the spectrum that have strong features potentially impacting the quality of the fit, or optionally adopt outlier rejection in the fit using the false discovery rate method [@Benjamini95] or sigma-clipping.
 
 
 
