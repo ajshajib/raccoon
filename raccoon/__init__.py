@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Top-level package for raccoon."""
 
 __author__ = """Anowar J. Shajib"""

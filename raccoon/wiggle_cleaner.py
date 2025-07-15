@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 __author__ = "ajshajib"
 
 import numpy as np
@@ -622,6 +624,7 @@ class WiggleCleaner(object):
         plot=True,
         verbose=True,
         fit_full_model=True,
+        save_figure_dir=None,
     ):
         """Fit the wiggle data.
 
@@ -849,7 +852,12 @@ class WiggleCleaner(object):
 
             if plot:
                 self.plot_full_fit_model(
-                    bestfit_model, model_uncertainty, spectra, noise, wiggle_model
+                    bestfit_model,
+                    model_uncertainty,
+                    spectra,
+                    noise,
+                    wiggle_model,
+                    save_figure_info={"x": x, "y": y, "dir": save_figure_dir},
                 )
 
         if extract_covariance:
@@ -904,16 +912,23 @@ class WiggleCleaner(object):
                 wiggle_noise,
                 result_params,
                 cov_matrix=cov_matrix,
+                save_figure_info={"x": x, "y": y, "dir": save_figure_dir},
             )
 
         return result_params, cov_matrix, wiggle_signal, wiggle_noise
 
     def plot_full_fit_model(
-        self, bestfit_model, model_uncertainty, spectra, noise, wiggle_model=None
+        self,
+        bestfit_model,
+        model_uncertainty,
+        spectra,
+        noise,
+        wiggle_model=None,
+        save_figure_info={"dir": None, "x": None, "y": None},
     ):
         """Plot the full fit model.
 
-        :param bestfit_model: Best fit model
+        :param bestfit_model: Best-fit model
         :type bestfit_model: np.ndarray
         :param model_uncertainty: Model uncertainty
         :type model_uncertainty: np.ndarray
@@ -931,7 +946,7 @@ class WiggleCleaner(object):
         ax.plot(
             self._wavelengths,
             bestfit_model,
-            label="Best fit model",
+            label="Best-fit model",
             lw=1,
             c=self.ORANGE,
         )
@@ -973,14 +988,14 @@ class WiggleCleaner(object):
             self._wavelengths,
             residuals,
             yerr=noise,
-            label="Residuals",
+            # label="Residuals",
             lw=1,
             c=self.GREEN,
         )
         ax2.axhline(0, color="black", lw=0.5, ls="--")
         ax2.set_ylabel("Residuals")
-        ax2.set_xlabel("Wavelengths")
-        ax2.legend()
+        ax2.set_xlabel(r"Wavelengths ($\rm\AA$)")
+        # ax2.legend()
 
         # plot vertical shaded regions for gaps
         for g in self._gaps:
@@ -999,6 +1014,11 @@ class WiggleCleaner(object):
             self._wavelengths[-1],
         )
 
+        if save_figure_info["dir"] is not None:
+            plt.savefig(
+                f"{save_figure_info['dir']}/wiggle_full_fit_{save_figure_info['x']}_{save_figure_info['y']}.png",
+                bbox_inches="tight",
+            )
         plt.show()
 
     def reject_outliers(
@@ -1092,6 +1112,7 @@ class WiggleCleaner(object):
         result_params,
         cov_matrix=None,
         num_samples_uncertainty_region=1000,
+        save_figure_info={"dir": None, "x": None, "y": None},
     ):
         """Plot the model.
 
@@ -1144,6 +1165,7 @@ class WiggleCleaner(object):
             label="Model",  # n_param({len(result_params)})",
             lw=1,
             c=line_color,
+            zorder=10,
         )
 
         if cov_matrix is not None:
@@ -1162,17 +1184,25 @@ class WiggleCleaner(object):
         for g in self._gaps:
             ax.axvspan(g[0], g[1], color=self.GREY, alpha=0.1)
 
-        ax.set_xlabel(r"Wavelengths")
+        ax.set_xlabel(r"Wavelengths ($\rm\AA$)")
         ax.set_ylabel("Wiggle model")
-        ax.legend()
-        ax.set_ylim(np.min(wiggle_signal) * 0.95, np.max(wiggle_signal) * 1.05)
+        ax.legend(loc="lower left", ncol=3)
+        ax.set_ylim(
+            np.min(wiggle_signal) * 0.7,
+            np.max(wiggle_signal) * 1.02,
+        )
+        # ax.set_ylim(np.min(wiggle_signal) * 0.95, np.max(wiggle_signal) * 1.05)
 
         delta_lambda = self._wavelengths[1] - self._wavelengths[0]
         ax.set_xlim(
             self._wavelengths[0] - delta_lambda * 2,
             self._wavelengths[-1] + delta_lambda * 2,
         )
-
+        if save_figure_info["dir"] is not None:
+            fig.savefig(
+                f"{save_figure_info['dir']}/wiggle_model_{save_figure_info['x']}_{save_figure_info['y']}.png",
+                bbox_inches="tight",
+            )
         plt.show()
 
     def get_model_uncertainty(

@@ -95,6 +95,7 @@ class TestWorkflow:
             fit_full_model=True,
             verbose=True,
             plot=True,
+            save_figure_dir="./",
         )
         assert isinstance(result_params, tuple)
         assert isinstance(result_params[0], np.ndarray)
