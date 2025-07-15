@@ -1,5 +1,5 @@
 ---
-title: 'raccoon: A package to correct resampling noise in JWST NIRSpec integral field spectroscopy'
+title: 'raccoon: A package to correct for wiggles in the JWST NIRSpec integral field spectroscopy'
 tags:
   - Python
   - astronomy
