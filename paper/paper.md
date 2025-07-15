@@ -81,9 +81,7 @@ where the index $i$ runs across the wavelength pixels and $\sigma_{i}$ is the as
 
 There are several advantages of `raccoon` over previously available scripts and routines. Both previous tools [@Perna23; @Dumont25] first extract the wiggle signal by comparing the single-spaxel spectrum with the template spectrum and then model the low-frequency behavior of the wiggles through a fast Fourier transform. `raccoon` fits the model including the wiggles directly to the data, bypassing the need for an intermediate extraction step. Furthermore, `raccoon` employs a single parametric model that is continuous through the fitted wavelength range. This combination of differences makes `raccoon` less susceptible to local imperfections (potentially present in an extracted wiggle signal) or gaps in the wavelength range, either excluded through masking of strong spectral features or through outlier rejection. Another notable difference is that previously available tools make an additive correction, whereas `raccoon` makes a multiplicative one. However, since both cases obtain the necessary correction factor or term empirically from the data, this difference should not put either of them at a disadvantage at a practical level. However, the wiggles manifest as a multiplicative effect on the extracted spectra [@Law23], which is the reason `raccoon` models them as such. Furthermore, uniquely among its peers, `raccoon` is installable through the `pip` command and thus is more user-friendly in its portability and flexibility of use.
 
-
 # Acknowledgements
-
 
 We acknowledge helpful discussions with ... This work makes use of the `Astropy`, `NumPy`, `SciPy`, and `Matplotlib` packages. AJS received support from NASA through STScI grants JWST-GO-2974 and HST-GO-16773.
 
