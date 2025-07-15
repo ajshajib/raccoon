@@ -68,7 +68,7 @@ where the index $i$ runs across the wavelength pixels and $\sigma_{i}$ is the as
 
 
 
-![Modeling of the full spectrum (blue in the top panel) based on the template spectra and the wiggles impacting it. The illustrated spectrum is the same one from Fig \ref{wiggle-in-spectrum}. The best-fit model is shown in orange and the wiggle-corrected spectrum is shown in black. The bottom panel illustrates the residuals (green) between the original data and the best-fit model.](wiggle_full_fit_16_16.png){#full-fit-example}
+![Modeling of the full spectrum (blue in the top panel) based on the template spectra and the wiggles impacting it. The illustrated spectrum is the same one from Figure \ref{wiggled-in-spectra}. The best-fit model is shown in orange and the wiggle-corrected spectrum is shown in black. The bottom panel illustrates the residuals (green) between the original data and the best-fit model.](wiggle_full_fit_16_16.png){#full-fit-example}
 
 
 
