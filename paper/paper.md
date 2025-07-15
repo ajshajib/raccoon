@@ -8,7 +8,7 @@ tags:
   - data reduction
   - IFU
 authors:
-  - name: Anowar J. Shajib
+  - name: Anowar J. Shajib, et al.
     orcid: 0000-0002-5558-888X
     equal-contrib: true
     affiliation: "1, 2, 3"
@@ -20,7 +20,7 @@ affiliations:
    index: 2
  - name: Center for Astronomy, Space Science and Astrophysics, Independent University, Bangladesh, Dhaka 1229, Bangladesh
    index: 3
-date: 13 July 2025
+date: 14 July 2025
 bibliography: paper.bib
 
 ---
