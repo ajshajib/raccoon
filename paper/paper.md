@@ -4,6 +4,7 @@ tags:
   - Python
   - astronomy
   - JWST
+  - NIRSpec
   - spectroscopy
   - data reduction
   - IFU
