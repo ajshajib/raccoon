@@ -8,7 +8,7 @@ tags:
   - data reduction
   - IFU
 authors:
-  - name: Anowar J. Shajib, et al.
+  - name: Anowar J. Shajib et al.
     orcid: 0000-0002-5558-888X
     affiliation: "1, 2, 3"
 affiliations:
