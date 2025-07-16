@@ -9,7 +9,7 @@ tags:
   - data reduction
   - IFU
 authors:
-  - name: Anowar J. Shajib et al.
+  - name: Anowar J. Shajib
     orcid: 0000-0002-5558-888X
     affiliation: "1, 2, 3"
 affiliations:
@@ -83,6 +83,6 @@ There are several advantages of `raccoon` over previously available scripts and 
 
 # Acknowledgements
 
-We acknowledge helpful discussions with ... This work makes use of the `Astropy`, `NumPy`, `SciPy`, and `Matplotlib` packages. AJS received support from NASA through STScI grants JWST-GO-2974 and HST-GO-16773.
+The author acknowledges helpful discussions with Michele Cappellari, Frédéric Courbin, David Law, and Tommaso Treu. AJS received support from NASA through STScI grants JWST-GO-2974 and HST-GO-16773. This work makes use of the `Astropy`, `NumPy`, `SciPy`, and `Matplotlib` packages.
 
 # References
