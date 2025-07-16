@@ -1,5 +1,5 @@
 ---
-title: 'raccoon: A package to correct for wiggles in the JWST NIRSpec integral field spectroscopy'
+title: 'raccoon: A Python package for removing wiggle artifacts in the JWST NIRSpec integral field spectroscopy'
 tags:
   - Python
   - astronomy
@@ -28,7 +28,7 @@ bibliography: paper.bib
 # Summary
 
 
-`raccoon` is a Python package designed to correct resampling noise — commonly referred to as "wiggles" — in the reduced spectra from the JWST Near Infrared Spectrograph's (NIRSpec) integral field spectroscopy (IFS) mode. These wiggles arise as artifacts during the resampling of the 2D raw data, affected by undersampling of the point spread function (PSF), into 3D datacubes. The standard JWST data reduction pipeline does not correct for this noise. The wiggle artifacts can significantly degrade the scientific usability of the data, particularly at the pixel level, undermining the exquisite spatial resolution of NIRSpec. `raccoon` provides an empirical correction by modeling and removing these artifacts, thereby restoring the fidelity of the extracted spectra. Whereas previously available tools for this purpose first extract a "wiggle signal" from the data and then model it through a fast Fourier transform, `raccoon` models the wiggles as a sinusoidal chirp function impacting a template spectrum that is directly fit to the original data, without an intermediate extraction step. As a result, `raccoon` robustly captures the global characteristics of the wiggles while avoiding potential impacts from local imperfections in an extracted wiggle signal.
+`raccoon` is a Python package designed to remove resampling noise — commonly referred to as "wiggles" — in the reduced spectra from the JWST Near Infrared Spectrograph's (NIRSpec) integral field spectroscopy (IFS) mode. These wiggles arise as artifacts during the resampling of the 2D raw data, affected by undersampling of the point spread function (PSF), into 3D datacubes. The standard JWST data reduction pipeline does not correct for this noise. The wiggle artifacts can significantly degrade the scientific usability of the data, particularly at the pixel level, undermining the exquisite spatial resolution of NIRSpec. `raccoon` provides an empirical correction by modeling and removing these artifacts, thereby restoring the fidelity of the extracted spectra. Whereas previously available tools for this purpose first extract a "wiggle signal" from the data and then model it through a fast Fourier transform, `raccoon` models the wiggles as a sinusoidal chirp function impacting a template spectrum that is directly fit to the original data, without an intermediate extraction step. As a result, `raccoon` robustly captures the global characteristics of the wiggles while avoiding potential impacts from local imperfections in an extracted wiggle signal.
 
 
 # Statement of need
