@@ -4,13 +4,13 @@ tags:
   - Python
   - astronomy
   - JWST
+  - NIRSpec
   - spectroscopy
   - data reduction
   - IFU
 authors:
-  - name: Anowar J. Shajib, et al.
+  - name: Anowar J. Shajib
     orcid: 0000-0002-5558-888X
-    equal-contrib: true
     affiliation: "1, 2, 3"
 affiliations:
  - name: Department  of  Astronomy  \&  Astrophysics,  University  of Chicago, Chicago, IL 60637, USA
@@ -68,7 +68,7 @@ where the index $i$ runs across the wavelength pixels and $\sigma_{i}$ is the as
 
 
 
-![Modeling of the full spectrum (blue in the top panel) based on the template spectra and the wiggles impacting it. The illustrated spectrum is the same one from Fig \ref{wiggle_in_spectrum}. The best-fit model is shown in orange and the wiggle-corrected spectrum is shown in black. The bottom panel illustrates the residuals (green) between the original data and the best-fit model.](wiggle_full_fit_16_16.png){#full-fit-example}
+![Modeling of the full spectrum (blue in the top panel) based on the template spectra and the wiggles impacting it. The illustrated spectrum is the same one from Figure \ref{wiggled-in-spectra}. The best-fit model is shown in orange and the wiggle-corrected spectrum is shown in black. The bottom panel illustrates the residuals (green) between the original data and the best-fit model.](wiggle_full_fit_16_16.png){#full-fit-example}
 
 
 
@@ -83,6 +83,6 @@ There are several advantages of `raccoon` over previously available scripts and 
 
 # Acknowledgements
 
-We acknowledge helpful discussions with ... This work makes use of the `Astropy`, `NumPy`, `SciPy`, and `Matplotlib` packages. AJS received support from NASA through STScI grants JWST-GO-2974 and HST-GO-16773.
+The author acknowledges helpful discussions with Michele Cappellari, Frédéric Courbin, David Law, and Tommaso Treu. AJS received support from NASA through STScI grants JWST-GO-2974 and HST-GO-16773. This work makes use of the `Astropy`, `NumPy`, `SciPy`, and `Matplotlib` packages.
 
 # References

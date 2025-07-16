@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "raccoon"
-version = "0.0.1"
+version = "1.0.0rc1"
 description = "Raccoon cleans modulation created by undersampling the PSF in the JWST/NIRSpec spectra."
 readme = "README.rst"
 authors = [
