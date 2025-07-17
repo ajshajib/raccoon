@@ -40,29 +40,17 @@ Since the wiggles in the single-spaxel spectra in the reduced JWST NIRSpec datac
 ![Illustration of the wiggles in the single-spaxel spectrum (blue), which is a manifestation of the resampling noise in the standard-pipeline-reduced datacube due to PSF undersampling. The red spectrum shows the aperture-summed spectrum within a 4-spaxel radius. The illustrated data are of an active galactic nucleus (AGN) from @Perna23.](./single_spaxel_vs_aperture_summed.png){#wiggled-in-spectra}
 
 In `raccoon`, the wiggle is modeled as a sinusoidal chirp function
-$$
-  W(\lambda) = 1 + A(\lambda) \left[ \sin \phi(\lambda) + a_1 \sin^2 \phi (\lambda) + a_2 \sin(3\phi(\lambda)) \right],
-  \label{wiggle}
-$$
+$$ W(\lambda) = 1 + A(\lambda) \left[ \sin \phi(\lambda) + a_1 \sin^2 \phi (\lambda) + a_2 \sin(3\phi (\lambda)) \right], \label{wiggle} $$
 where $A(\lambda)$ is the wavelength-dependent amplitude and $\phi (\lambda) = \lambda\,k(\lambda) + \phi_0$ is the phase that depends on a wavelength-dependent wavenumber $k(\lambda)$. The wiggle's peaks and troughs can be asymmetrically and symmetrically sharpened (or de-sharpened) by varying the $a_1$ and $a_2$ parameters, respectively.
 
 Given this parametrization for the wiggle, a single-spaxel spectrum $D(\lambda)$ is modeled with
-$$
-  M (\lambda) = W(\lambda) \, T(\lambda),
-  \label{model}
-$$
+$$ M (\lambda) = W(\lambda) \, T(\lambda), \label{model} $$
 where $T(\lambda)$ is a template for the correct spectrum devoid of the wiggles. In `raccoon`, this template is constructed based on the circular-aperture-summed spectrum $C(\lambda)$. The template can also optionally include a spectrum $S(\lambda)$ summed from a shell or annulus centered on the corresponding spaxel, following @Dumont25. Including the shell-summed spectrum in the template can account for changes in the line shape between the single-spaxel spectrum and the aperture-summed one, for example, in the case of lines broadened by stellar kinematics that can vary across the galaxy [@Dumont25]. The aperture radius and the inner and outer radii of the shell are to be adjusted by the user, as the appropriate values can depend on the source morphology and the astronomical scene. The template is constructed as
-$$
-    T(\lambda) = c_1\,C(\lambda) + c_2 \, S(\lambda) + c_3 \,\lambda^b + \sum_{n=0}^N p_n\, \lambda^n ,
-    \label{template}
-$$
+$$ T(\lambda) = c_1\,C(\lambda) + c_2 \, S(\lambda) + c_3 \,\lambda^b + \sum_{n=0}^N p_n\, \lambda^n ,  \label{template} $$
 where $c_1,c_2, c_3, p_0, \dots, p_N$ are linear coefficients. Here, the power-law plus polynomial term (i.e., $c_3 \,\lambda^b + \sum_{n=0}^N p_n\, \lambda^n$) on the right-hand side models the difference in the continuum between the single-spaxel spectrum and $c_1\,C(\lambda) + c_2 \, S(\lambda)$.
 
 The functions $A(\lambda)$ and $k(\lambda)$ are modeled with B-splines, with the number of knots adjustable by the user. `raccoon` provides functionality for the user to determine the appropriate number of knots using model selection criteria such as the Bayesian information criterion (BIC) or the minimum *a posteriori* chi-squared metric ($\chi^2_{\rm MAP}$). The best-fit values for the linear coefficients (i.e., $c_1, c_2, c_3, p_0, \dots, p_N$) and non-linear parameters (i.e., $a_1$, $a_2$, $b$ and the coefficients of the B-spline basis functions) are determined by minimizing the chi-squared quantity
-$$
-\chi^2 = \sum_{i} \frac{(D_i - M_i)^2}{\sigma_i^2},
-\label{chisquare}
-$$
+$$ \chi^2 = \sum_{i} \frac{(D_i - M_i)^2}{\sigma_i^2}, \label{chisquare} $$
 where the index $i$ runs across the wavelength pixels and $\sigma_{i}$ is the associated noise level. \autoref{full-fit-example} illustrates an example of the fitted model to a given spectrum (of an AGN). In this example, `raccoon`'s robust performance is demonstrated in fitting the given spectrum while modeling the wiggle signal (\autoref{wiggle-model-example}). The user can mask out regions of the spectrum that have strong features potentially impacting the quality of the fit, or optionally adopt outlier rejection in the fit using the false discovery rate method [@Benjamini95] or sigma-clipping.
 
 ![Modeling of the full spectrum (blue in the top panel) based on the template spectra and the wiggles impacting it. The illustrated spectrum is the same one from \autoref{wiggled-in-spectra}. The best-fit model is shown in orange and the wiggle-corrected spectrum is shown in black. The bottom panel illustrates the residuals (green) between the original data and the best-fit model.](wiggle_full_fit_16_16.png){#full-fit-example}
