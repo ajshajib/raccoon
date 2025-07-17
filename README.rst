@@ -35,12 +35,10 @@ Alternatively, you can install the latest development version from GitHub as:
 Features
 --------
 
-- **Wiggle Cleaning**: The primary feature of the package is to remove wiggles from JWST-NIRSpec IFS data.
+- **Wiggle cleaning**: The primary feature of the package is to clean wiggles from JWST-NIRSpec IFS data.
 - **Visualization**: It provides tools to visualize the data before and after wiggle cleaning.
 - **Documentation**: Comprehensive documentation is available to help users understand how to use the package effectively.
-- |codecov| **tested!**: The package includes unit tests to ensure the functionality works as expected.
-- **Extensibility**: The package is designed to be extensible, allowing users to add their own features and functionality.
-- **Community Support**: The package is open-source, and users can contribute to its development or seek help from the community.
+- |codecov| **tested**: The package includes unit tests to ensure the functionality works as expected.
 - **User-Friendly**: The package aims to provide a user-friendly experience, with intuitive interfaces and clear documentation.
 
 .. |Read the Docs| image:: https://readthedocs.org/projects/raccoon-docs/badge/?version=latest
