@@ -20,7 +20,7 @@ affiliations:
    index: 2
  - name: Center for Astronomy, Space Science and Astrophysics, Independent University, Bangladesh, Dhaka 1229, Bangladesh
    index: 3
-date: 14 July 2025
+date: 16 July 2025
 bibliography: paper.bib
 
 ---
