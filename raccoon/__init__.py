@@ -3,7 +3,7 @@
 
 __author__ = """Anowar J. Shajib"""
 __email__ = "ajshajib@gmail.com"
-__version__ = "1.0.0rc1"
+__version__ = "0.1.0rc1"
 
 from .wiggle_cleaner import WiggleCleaner
 

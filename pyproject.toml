@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "space-raccoon"
-version = "1.0.0rc1"
+version = "0.1.0rc1"
 description = "Raccoon cleans modulation created by undersampling the PSF in the JWST/NIRSpec spectra."
 readme = "README.rst"
 license = "BSD-3-Clause"
