@@ -5,13 +5,41 @@
 |Read the Docs| |GitHub| |Codecov| |Black| |docformatter| |docstyle|
 
 
-Raccoon cleans modulation due to resampling noise (i.e., aliasing artifacts) in the JWST/NIRSpec IFS spectra. Check out the `demo notebook here`_ for a quick start.
+Raccoon cleans the "wiggles" (i.e., low-frequency sinusoidal artifacts) in the JWST-NIRSpec IFS (integral field spectroscopy) data. These wiggles are caused by resampling noise or aliasing artifacts. For a quick start or demonstration, see the `example notebook here`_.
 
-.. _`demo notebook here`: https://github.com/ajshajib/raccoon/blob/main/example/example_notebook.ipynb
-
-**Note**: The software is in alpha version. Please report any issues or bugs you encounter. Any direct contribution through pull requests is highly appreciated.
+.. _`example notebook here`: https://github.com/ajshajib/raccoon/blob/main/example/example_notebook.ipynb
 
 
+Installation
+------------
+
+.. image:: https://img.shields.io/pypi/v/space-raccoon.svg
+   :alt: PyPI - Version
+   :target: https://pypi.org/project/space-raccoon/
+
+
+You can install ``raccoon`` using ``pip``. Run the following command:
+
+.. code-block:: bash
+
+    pip install space-raccoon
+
+Alternatively, you can install the latest development version from GitHub as:
+
+.. code-block:: bash
+
+    git clone https://github.com/ajshajib/raccoon.git
+    cd raccoon
+    pip install .
+
+Features
+--------
+
+- **Wiggle cleaning**: The primary feature of the package is to clean wiggles from JWST-NIRSpec IFS data.
+- **Visualization**: It provides tools to visualize the data before and after wiggle cleaning.
+- **Documentation**: Comprehensive documentation is available to help users understand how to use the package effectively.
+- |codecov| **tested**: The package includes unit tests to ensure the functionality works as expected.
+- **User-Friendly**: The package aims to provide a user-friendly experience, with intuitive interfaces and clear documentation.
 
 .. |Read the Docs| image:: https://readthedocs.org/projects/raccoon-docs/badge/?version=latest
     :target: https://raccoon-docs.readthedocs.io/en/latest/?badge=latest

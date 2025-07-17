@@ -150,7 +150,7 @@ class WiggleCleaner(object):
         """
         return self.scale_wavelengths_negative1_to_1(self._wavelengths)
 
-    def wiggle_func(self, xs, amplitude_params, frequency_params, phi, k_1=0, k_2=0):
+    def wiggle_func(self, xs, amplitude_params, frequency_params, phi, a_1=0, a_2=0):
         """Get the wiggle function.
 
         :param xs: Scaled wavelengths
@@ -175,8 +175,8 @@ class WiggleCleaner(object):
 
         wave_function = (
             np.sin(frequency * xs + phi)
-            + k_1 * (np.sin(frequency * xs + phi) ** 2)  # asymmetric sharpness
-            + k_2 * np.sin(3 * (frequency * xs + phi))  # sharpness
+            + a_1 * (np.sin(frequency * xs + phi) ** 2)  # asymmetric sharpness
+            + a_2 * np.sin(3 * (frequency * xs + phi))  # sharpness
         )
 
         return 1.0 + amplitude * wave_function
@@ -219,41 +219,41 @@ class WiggleCleaner(object):
             params, n_amplitude, n_frequency
         )
 
-        k_1, k_2 = self.get_k1_k2(params)
+        a_1, a_2 = self.get_a1_a2(params)
 
         wiggle_model = self.wiggle_func(
             self.scaled_w,
             amplitude_params,
             frequency_params,
             phi_0,
-            k_1=k_1,
-            k_2=k_2,
+            a_1=a_1,
+            a_2=a_2,
         )
         return wiggle_model
 
-    def get_k1_k2(self, params):
-        """Get the k_1 and k_2 parameters for asymmetric and symmetric sharpening from
+    def get_a1_a2(self, params):
+        """Get the a_1 and a_2 parameters for asymmetric and symmetric sharpening from
         the params array.
 
         :param params: Parameters
         :type params: np.ndarray
-        :return: k_1 and k_2 parameters
+        :return: a_1 and a_2 parameters
         :rtype: Tuple[float, float]
         """
         n_amplitude, n_frequency = self.configure_polynomial_ns()
         if self._asymmetric_sharpening and not self._symmetric_sharpening:
-            k_1 = params[n_amplitude + n_frequency + 5]
-            k_2 = 0
+            a_1 = params[n_amplitude + n_frequency + 5]
+            a_2 = 0
         elif self._symmetric_sharpening and not self._asymmetric_sharpening:
-            k_1 = 0
-            k_2 = params[n_amplitude + n_frequency + 5]
+            a_1 = 0
+            a_2 = params[n_amplitude + n_frequency + 5]
         elif self._symmetric_sharpening and self._asymmetric_sharpening:
-            k_1 = params[n_amplitude + n_frequency + 5]
-            k_2 = params[n_amplitude + n_frequency + 6]
+            a_1 = params[n_amplitude + n_frequency + 5]
+            a_2 = params[n_amplitude + n_frequency + 6]
         else:
-            k_1 = 0
-            k_2 = 0
-        return k_1, k_2
+            a_1 = 0
+            a_2 = 0
+        return a_1, a_2
 
     def get_exponent_param(self, params):
         """Get the exponent parameter for the wavelength term in the power-law component
@@ -940,7 +940,7 @@ class WiggleCleaner(object):
         :rtype: None
         """
 
-        fig = plt.figure(figsize=(15, 4))
+        fig = plt.figure(figsize=(12, 5))
         gs = GridSpec(4, 1, height_ratios=[3, 0.05, 1, 0.05], hspace=0)
         ax = fig.add_subplot(gs[0])
         ax.plot(
@@ -1129,7 +1129,7 @@ class WiggleCleaner(object):
         :return: None
         :rtype: None
         """
-        fig = plt.figure(figsize=(15, 2))
+        fig = plt.figure(figsize=(12, 2.5))
         ax = fig.add_subplot(111)
 
         ax.errorbar(
