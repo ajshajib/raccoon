@@ -12,7 +12,7 @@ license-files = ["LICEN[CS]E*", "AUTHORS.rst"]
 authors = [
     { name = "Anowar J. Shajib", email = "ajshajib@gmail.com" }
 ]
-keywords = ["dolphin", "lenstronomy"]
+keywords = ["JWST", "NIRSpec", "IFU", "data reduction", "spectroscopy"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
@@ -25,7 +25,7 @@ requires-python = ">=3.10"
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/ajshajib/dolphin"
+Homepage = "https://github.com/ajshajib/raccoon"
 
 [tool.setuptools.packages.find]
 include = ["raccoon", "raccoon.*"]
