@@ -1,5 +1,5 @@
-raccoon
-=======
+API reference
+=============
 
 .. toctree::
    :maxdepth: 4
