@@ -55,7 +55,7 @@ $$
 $$
 where $c_1,c_2, c_3, p_0, \dots, p_N$ are linear coefficients. Here, the power-law plus polynomial term (i.e., $c_3 \,\lambda^b + \sum_{n=0}^N p_n\, \lambda^n$) on the right-hand side models the difference in the continuum between the single-spaxel spectrum and $c_1\,C(\lambda) + c_2 \, S(\lambda)$.
 
-The functions $A(\lambda)$ and $k(\lambda)$ are modeled with B-splines, with the number of knots adjustable by the user. `raccoon` provides functionality for the user to determine the appropriate number of knots using model selection criteria based on the Bayesian information criterion (BIC) or the minimum *a posteriori* chi-squared metric ($\chi^2_{\rm MAP}$). The best-fit values for the linear coefficients (i.e., $c_1, c_2, c_3, p_0, \dots, p_N$) and non-linear parameters (i.e., $a_1$, $a_2$, $b$ and the coefficients of the B-spline basis functions) are determined by minimizing the chi-squared quantity
+The functions $A(\lambda)$ and $k(\lambda)$ are modeled with B-splines, with the number of knots adjustable by the user. `raccoon` provides functionality for the user to determine the appropriate number of knots using model selection criteria based on the Bayesian information criterion (BIC) or the minimum *a posteriori* chi-square metric ($\chi^2_{\rm MAP}$). The best-fit values for the linear coefficients (i.e., $c_1, c_2, c_3, p_0, \dots, p_N$) and non-linear parameters (i.e., $a_1$, $a_2$, $b$ and the coefficients of the B-spline basis functions) are determined by minimizing
 $$ 
     \chi^2 = \sum_{i} \frac{(D_i - M_i)^2}{\sigma_i^2}, \tag{4}\label{eq:chisquare} 
 $$
