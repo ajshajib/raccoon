@@ -940,7 +940,7 @@ class WiggleCleaner(object):
         :rtype: None
         """
 
-        fig = plt.figure(figsize=(14, 5))
+        fig = plt.figure(figsize=(12, 5))
         gs = GridSpec(4, 1, height_ratios=[3, 0.05, 1, 0.05], hspace=0)
         ax = fig.add_subplot(gs[0])
         ax.plot(
@@ -1129,7 +1129,7 @@ class WiggleCleaner(object):
         :return: None
         :rtype: None
         """
-        fig = plt.figure(figsize=(14, 2.5))
+        fig = plt.figure(figsize=(12, 2.5))
         ax = fig.add_subplot(111)
 
         ax.errorbar(
