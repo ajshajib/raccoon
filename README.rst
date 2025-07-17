@@ -46,7 +46,7 @@ Features
     :alt: Documentation Status
 
 .. |GitHub| image:: https://github.com/ajshajib/raccoon/actions/workflows/ci.yaml/badge.svg?branch=main
-    :target: https://github.com/ajshajib/dolphin/actions/workflows/ci.yaml
+    :target: https://github.com/ajshajib/raccoon/actions/workflows/ci.yaml
     :alt: Build Status
 
 .. |Codecov| image:: https://codecov.io/github/ajshajib/raccoon/graph/badge.svg?token=IZOMFPHA7W 
