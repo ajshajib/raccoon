@@ -63,8 +63,9 @@ Features
     :target: https://github.com/PyCQA/docformatter
 
 .. |license| image:: https://img.shields.io/badge/License-BSD_3--Clause-blue.svg
-    :target: https://github.com/ajshajib/dolphin/blob/main/LICENSE
+    :target: https://github.com/ajshajib/raccoon/blob/main/LICENSE
     :alt: License BSD 3-Clause Badge
+
 .. |pre-commit| image:: https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=brightyellow
     :target: https://pre-commit.com/
 
