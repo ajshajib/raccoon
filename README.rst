@@ -39,7 +39,7 @@ Features
 - **Visualization**: It provides tools to visualize the data before and after wiggle cleaning.
 - **Documentation**: Comprehensive documentation is available to help users understand how to use the package effectively.
 - |codecov| **tested**: The package includes unit tests to ensure the functionality works as expected.
-- **User friendly**: The package aims to provide a user-friendly experience, with intuitive interfaces and clear documentation.
+- **User-friendly**: The package aims to provide a user-friendly experience, with intuitive interfaces and clear documentation.
 
 .. |Read the Docs| image:: https://readthedocs.org/projects/raccoon-docs/badge/?version=latest
     :target: https://raccoon-docs.readthedocs.io/en/latest/?badge=latest
