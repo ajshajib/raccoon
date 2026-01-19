@@ -7,5 +7,4 @@ __version__ = "1.0.0"
 
 from .wiggle_cleaner import WiggleCleaner
 
-
 __all__ = ["WiggleCleaner"]
