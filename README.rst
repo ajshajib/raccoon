@@ -2,7 +2,7 @@
 🦝 raccoon
 ==========
 
-|Read the Docs| |GitHub| |Codecov| |joss| |arXiv| |license| |pre-commit| |Black| |docformatter| |docstyle|
+|Read the Docs| |GitHub| |Codecov| |arXiv| |license| |pre-commit| |Black| |docformatter| |docstyle|
 
 
 Raccoon cleans the "wiggles" (i.e., low-frequency sinusoidal artifacts) in the JWST-NIRSpec IFS (integral field spectroscopy) data. These wiggles are caused by resampling noise or aliasing artifacts. For a quick start or demonstration, see the `example notebook here`_.
